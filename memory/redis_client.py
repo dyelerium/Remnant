@@ -161,16 +161,17 @@ class RemnantRedisClient:
         self.r.zadd(RECENT_ZSET_KEY, {chunk_id: ts})
 
     def get_chunk(self, chunk_id: str) -> Optional[dict]:
-        """Retrieve a single chunk by ID."""
+        """Retrieve a single chunk by ID (embedding excluded — binary, not JSON-safe)."""
         data = self.r.hgetall(chunk_key(chunk_id))
         if not data:
             return None
-        return {
-            k.decode() if isinstance(k, bytes) else k: (
-                v.decode() if isinstance(v, bytes) and k not in (b"embedding",) else v
-            )
-            for k, v in data.items()
-        }
+        result = {}
+        for k, v in data.items():
+            key = k.decode() if isinstance(k, bytes) else k
+            if key == "embedding":
+                continue  # binary blob — skip for API responses
+            result[key] = v.decode() if isinstance(v, bytes) else v
+        return result
 
     def delete_chunk(self, chunk_id: str) -> None:
         """Delete a chunk and clean up secondary indices."""
