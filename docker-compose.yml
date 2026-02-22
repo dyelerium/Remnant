@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis/redis-stack:latest
+    container_name: remnant-redis
+    ports:
+      - "6379:6379"
+      - "8001:8001"  # RedisInsight
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  remnant:
+    build: .
+    container_name: remnant
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - REMNANT_MASTER_KEY=${REMNANT_MASTER_KEY}
+      - REMNANT_ENV=production
+    volumes:
+      - ./memory:/app/memory
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./workspace:/app/workspace
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  whatsapp-sidecar:
+    build: ./whatsapp-sidecar
+    container_name: remnant-whatsapp
+    ports:
+      - "3000:3000"
+    environment:
+      - REMNANT_URL=http://remnant:8000
+    volumes:
+      - whatsapp_data:/app/.wwebjs_auth
+    restart: unless-stopped
+    profiles:
+      - whatsapp  # Only started with: docker compose --profile whatsapp up
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: remnant-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    profiles:
+      - ollama  # Only started with: docker compose --profile ollama up
+
+volumes:
+  redis_data:
+  whatsapp_data:
+  ollama_data:

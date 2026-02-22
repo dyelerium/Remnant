@@ -1,0 +1,12 @@
+name: n8n_trigger
+description: Trigger an n8n automation workflow via webhook.
+tool: n8n
+tags: [automation, n8n, webhook]
+safety_level: safe
+
+examples:
+  - description: Trigger a workflow
+    args:
+      workflow_id: my-workflow
+      payload:
+        message: "Hello from Remnant"

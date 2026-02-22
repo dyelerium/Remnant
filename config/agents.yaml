@@ -1,0 +1,61 @@
+# Remnant Agent Definitions and Channel Routing
+
+agents:
+  default:
+    name: "Remnant"
+    description: "General-purpose AI agent with full memory and tool access"
+    llm: "claude"
+    model: "claude-sonnet-4-6"
+    system_prompt: |
+      You are Remnant, an advanced AI agent with persistent memory, tool use, and the ability to
+      delegate tasks to specialist sub-agents. You have access to:
+      - A persistent memory system (Redis-backed vector search)
+      - File system tools
+      - Web search
+      - Code execution
+      - Task delegation to sub-agents
+
+      Use your memory context above to inform your responses. Always be helpful, accurate, and concise.
+    tools:
+      - filesystem
+      - web_search
+      - code_exec
+      - http_client
+      - memory_retrieve
+      - memory_record
+    max_depth: 3  # Max sub-agent nesting depth
+
+  researcher:
+    name: "Researcher"
+    description: "Specialist agent for web research and information gathering"
+    llm: "claude"
+    model: "claude-sonnet-4-6"
+    system_prompt: |
+      You are a research specialist. Your job is to find accurate, up-to-date information
+      using web search tools. Synthesize findings into clear, concise summaries.
+    tools:
+      - web_search
+      - http_client
+    max_depth: 1
+
+  coder:
+    name: "Coder"
+    description: "Specialist agent for code generation and execution"
+    llm: "claude"
+    model: "claude-sonnet-4-6"
+    system_prompt: |
+      You are a coding specialist. Write clean, working code. Test it when possible.
+      Document your approach. Prefer Python unless specified otherwise.
+    tools:
+      - filesystem
+      - code_exec
+      - web_search
+    max_depth: 1
+
+# Channel → Agent routing
+routing:
+  webchat: default
+  telegram: default
+  discord: default
+  whatsapp: default
+  mcp: default  # Claude Code MCP connections

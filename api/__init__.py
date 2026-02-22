@@ -1,0 +1,1 @@
+"""Remnant FastAPI application."""

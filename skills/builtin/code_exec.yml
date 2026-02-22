@@ -1,0 +1,13 @@
+name: code_exec
+description: Execute Python, JavaScript, or Bash code in a sandboxed subprocess.
+tool: code_exec
+tags: [code, execution, sandbox]
+safety_level: confirm
+
+examples:
+  - description: Run Python code
+    args:
+      language: python
+      code: |
+        import math
+        print(math.sqrt(144))

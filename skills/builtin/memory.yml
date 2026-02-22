@@ -1,0 +1,11 @@
+name: memory_retrieve
+description: Retrieve relevant memory chunks from the Remnant vector store.
+tool: memory_retrieve
+tags: [memory, search]
+safety_level: safe
+
+examples:
+  - description: Find memories about a user preference
+    args:
+      query: "preferred programming language"
+      max_chunks: 5

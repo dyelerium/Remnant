@@ -1,0 +1,40 @@
+/* Remnant — Purple dark theme */
+:root {
+  --bg: #0f0e17;
+  --bg-card: #1a1826;
+  --bg-input: #231f35;
+  --accent: #7c3aed;
+  --accent-light: #a78bfa;
+  --hover: #a78bfa;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --border: #2d2b45;
+  --error: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --gen: #7c3aed;
+  --use: #0ea5e9;
+  --exe: #f59e0b;
+  --mcp: #10b981;
+  --font: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --radius: 8px;
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  height: 100%;
+  overflow: hidden;
+}
+
+scrollbar-width: thin;
+scrollbar-color: var(--accent) var(--bg-card);
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-card); }
+::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }

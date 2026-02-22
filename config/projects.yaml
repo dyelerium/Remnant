@@ -1,0 +1,76 @@
+# Global project list and planning templates
+# Individual projects can also be defined at runtime via the API/planning wizard.
+
+# Global planning templates
+templates:
+  default:
+    name: "General Project"
+    description: "Default project template"
+    memory_scopes:
+      - project
+      - global
+    default_agent: "default"
+    tool_policy: "standard"
+
+  dev:
+    name: "Software Development"
+    description: "Software development project with Claude Code integration"
+    memory_scopes:
+      - project
+      - global
+    default_agent: "coder"
+    tool_policy: "dev"
+    claude_md_template: |
+      # {project_name} — Claude Code Instructions
+
+      ## Context
+      {description}
+
+      ## Working Directory
+      {working_dir}
+
+      ## Conventions
+      - Follow existing code style
+      - Write tests for new features
+      - Update documentation when APIs change
+    mcp_integration:
+      enabled: true
+      target: "claude-code"
+
+  research:
+    name: "Research Project"
+    description: "Information gathering and synthesis"
+    memory_scopes:
+      - project
+      - global
+    default_agent: "researcher"
+    tool_policy: "research"
+
+# Wizard questions for project creation
+planning_wizard:
+  questions:
+    - id: project_name
+      prompt: "What is the name of this project?"
+      type: string
+      required: true
+    - id: description
+      prompt: "Briefly describe the project goal:"
+      type: string
+      required: true
+    - id: template
+      prompt: "Choose a template:"
+      type: choice
+      choices: [default, dev, research]
+      default: default
+    - id: working_dir
+      prompt: "Working directory (leave blank for default):"
+      type: string
+      required: false
+    - id: budget_usd_daily
+      prompt: "Daily LLM budget in USD (default: 2.00):"
+      type: float
+      default: 2.0
+    - id: enable_mcp
+      prompt: "Enable Claude Code MCP integration? (y/n):"
+      type: bool
+      default: false

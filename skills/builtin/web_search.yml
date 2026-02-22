@@ -1,0 +1,15 @@
+name: web_search
+description: Search the web via DuckDuckGo instant answer API and return results.
+tool: http_client
+tags: [search, research, web]
+safety_level: safe
+
+# DuckDuckGo instant answer: build URL from query
+arg_map:
+  query: url
+
+examples:
+  - description: Search for Python asyncio
+    args:
+      query: "https://api.duckduckgo.com/?q=python+asyncio&format=json&no_html=1"
+      method: GET

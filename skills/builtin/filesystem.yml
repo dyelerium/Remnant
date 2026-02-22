@@ -1,0 +1,16 @@
+name: filesystem
+description: Read or write files within allowed directories.
+tool: filesystem
+tags: [filesystem, files]
+safety_level: confirm
+
+examples:
+  - description: Read a file
+    args:
+      operation: read
+      path: "./workspace/notes.txt"
+  - description: Write a file
+    args:
+      operation: write
+      path: "./workspace/output.txt"
+      content: "Hello, world!"

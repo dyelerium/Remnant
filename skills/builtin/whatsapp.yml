@@ -1,0 +1,14 @@
+name: whatsapp_send
+description: Send a WhatsApp message via the QR bridge sidecar.
+tool: http_client
+tags: [whatsapp, messaging, channel]
+safety_level: safe
+
+examples:
+  - description: Send a WhatsApp message
+    args:
+      url: "http://whatsapp-sidecar:3000/send"
+      method: POST
+      body:
+        phone: "491234567890"
+        message: "Hello from Remnant!"

@@ -1,0 +1,12 @@
+name: mcp_bridge
+description: Access Claude Code MCP tools via the MCP protocol client.
+tool: mcp_client
+tags: [mcp, claude-code, bridge]
+safety_level: safe
+
+examples:
+  - description: Retrieve memory via MCP
+    args:
+      tool_name: memory_retrieve
+      args:
+        query: "project architecture decisions"

@@ -1,0 +1,14 @@
+name: telegram_send
+description: Send a message via the Telegram bot channel.
+tool: http_client
+tags: [telegram, messaging, channel]
+safety_level: safe
+
+examples:
+  - description: Send a Telegram message
+    args:
+      url: "http://localhost:8000/internal/telegram/send"
+      method: POST
+      body:
+        chat_id: "123456789"
+        text: "Hello from Remnant!"
