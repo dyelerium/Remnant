@@ -202,6 +202,8 @@ class LLMClient:
             client_kwargs["api_key"] = spec.api_key
         if spec.base_url:
             client_kwargs["base_url"] = spec.base_url
+        if spec.extra_headers:
+            client_kwargs["default_headers"] = spec.extra_headers
         client = openai.OpenAI(**client_kwargs)
         max_tok = max_tokens or 4096
 
@@ -227,6 +229,8 @@ class LLMClient:
             client_kwargs["api_key"] = spec.api_key
         if spec.base_url:
             client_kwargs["base_url"] = spec.base_url
+        if spec.extra_headers:
+            client_kwargs["default_headers"] = spec.extra_headers
         client = openai.AsyncOpenAI(**client_kwargs)
 
         stream = await client.chat.completions.create(

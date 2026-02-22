@@ -49,7 +49,25 @@ providers:
     name: "OpenRouter"
     api_key_env: "OPENROUTER_API_KEY"
     base_url: "https://openrouter.ai/api/v1"
+    extra_headers:
+      HTTP-Referer: "http://localhost:8000"
+      X-Title: "Remnant"
     models:
+      qwen/qwen3-next-80b-a3b-instruct:free:
+        context_window: 32000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        use_cases: [chat, planning, curator, compaction, default]
+      stepfun/step-3.5-flash:free:
+        context_window: 32000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        use_cases: [chat, planning, curator, compaction, fast, default]
+      upstage/solar-pro-3:free:
+        context_window: 32000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        use_cases: [chat, planning]
       mistralai/mixtral-8x7b-instruct:
         context_window: 32000
         cost_per_1k_input: 0.00024
@@ -79,9 +97,9 @@ providers:
 
 # Default routing: use_case → provider/model
 defaults:
-  chat: "anthropic/claude-sonnet-4-6"
-  planning: "anthropic/claude-sonnet-4-6"
-  curator: "anthropic/claude-haiku-4-5-20251001"
-  compaction: "anthropic/claude-haiku-4-5-20251001"
+  chat: "openrouter/stepfun/step-3.5-flash:free"
+  planning: "openrouter/stepfun/step-3.5-flash:free"
+  curator: "openrouter/stepfun/step-3.5-flash:free"
+  compaction: "openrouter/stepfun/step-3.5-flash:free"
   embedding: "sentence-transformers/all-MiniLM-L6-v2"
-  fast: "anthropic/claude-haiku-4-5-20251001"
+  fast: "openrouter/stepfun/step-3.5-flash:free"

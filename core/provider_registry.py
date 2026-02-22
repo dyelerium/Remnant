@@ -19,6 +19,7 @@ class ModelSpec:
     use_cases: list[str] = field(default_factory=list)
     api_key: Optional[str] = None
     base_url: Optional[str] = None
+    extra_headers: dict = field(default_factory=dict)
 
 
 class ProviderRegistry:
@@ -36,6 +37,8 @@ class ProviderRegistry:
             api_key = os.environ.get(api_key_env, "") if api_key_env else None
             base_url = provider_cfg.get("base_url")
 
+            extra_headers = provider_cfg.get("extra_headers", {})
+
             for model_name, model_cfg in provider_cfg.get("models", {}).items():
                 key = f"{provider_name}/{model_name}"
                 self._models[key] = ModelSpec(
@@ -47,6 +50,7 @@ class ProviderRegistry:
                     use_cases=model_cfg.get("use_cases", []),
                     api_key=api_key,
                     base_url=base_url,
+                    extra_headers=extra_headers,
                 )
 
         logger.debug("Loaded %d model specs", len(self._models))
