@@ -143,11 +143,22 @@ class MemoryRecorder:
         project_id: Optional[str],
     ) -> None:
         """Append timestamped entry to the Markdown source of truth."""
+        import os
         target_file.parent.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
         header = f"\n## [{timestamp}] {chunk_type}"
         if project_id:
             header += f" (project: {project_id})"
         entry = f"{header}\n\n{text}\n"
-        with open(target_file, "a", encoding="utf-8") as fh:
-            fh.write(entry)
+        # Open with world-writable mode so container (uid 1000) and host
+        # user (uid 1003) can both append across Docker volume mounts.
+        old_mask = os.umask(0o000)
+        try:
+            with open(target_file, "a", encoding="utf-8") as fh:
+                fh.write(entry)
+            try:
+                target_file.chmod(0o666)  # best-effort; fails if we don't own the file
+            except OSError:
+                pass
+        finally:
+            os.umask(old_mask)
