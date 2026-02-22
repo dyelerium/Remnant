@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Remnant</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%237c3aed'/><text x='6' y='24' font-size='20'>⬡</text></svg>" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <!-- Marked.js -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="/css/style.css" />
+
+  <!-- App logic (must come before alpine:init fires) -->
+  <script src="/js/app.js"></script>
+</head>
+
+<body x-data="remnantApp" x-init="init()">
+
+<!-- ================================================================
+     LAYOUT GRID
+     ================================================================ -->
+<div id="app">
+
+  <!-- ============================================================
+       HEADER
+       ============================================================ -->
+  <header>
+    <!-- Logo -->
+    <div class="logo">
+      <div class="logo-icon">⬡</div>
+      REMNANT
+    </div>
+
+    <!-- Active project pill -->
+    <div style="margin-left:12px;font-size:12px;color:var(--text-muted);padding:3px 8px;background:var(--bg3);border-radius:4px;border:1px solid var(--border)" x-text="activeProjectName"></div>
+
+    <div class="header-spacer"></div>
+
+    <!-- Connection status -->
+    <div class="status-pill">
+      <div class="status-dot" :class="wsStatus"></div>
+      <span x-text="statusLabel"></span>
+    </div>
+
+    <!-- Memory button -->
+    <button class="header-btn" title="Memory" @click="toggleMemory()">
+      🧠
+    </button>
+
+    <!-- Settings button -->
+    <button class="header-btn" title="Settings" @click="openSettings()">
+      ⚙️
+    </button>
+  </header>
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <aside>
+    <div class="sidebar-scroll">
+
+      <!-- Projects -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Projects</div>
+
+        <!-- Default -->
+        <div class="sidebar-item" :class="{ active: !activeProjectId }" @click="selectProject(null)">
+          <span class="item-icon">📁</span>
+          <span class="item-label">default</span>
+        </div>
+
+        <!-- Loaded projects -->
+        <template x-for="p in projects" :key="p.project_id">
+          <div class="sidebar-item" :class="{ active: activeProjectId === p.project_id }" @click="selectProject(p.project_id)">
+            <span class="item-icon">📂</span>
+            <span class="item-label" x-text="p.name || p.project_id"></span>
+          </div>
+        </template>
+
+        <div class="empty-state" x-show="projects.length === 0" style="display:none">No projects yet</div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Chats -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Chats</div>
+
+        <template x-for="chat in chats" :key="chat.id">
+          <div class="sidebar-item" :class="{ active: activeChatId === chat.id }" @click="selectChat(chat.id)">
+            <span class="item-icon">💬</span>
+            <span class="item-label" x-text="chat.title"></span>
+            <span class="item-badge" x-text="chat.messages.filter(m=>m.role==='user').length" x-show="chat.messages.length > 0"></span>
+          </div>
+        </template>
+
+        <div class="empty-state" x-show="chats.length === 0" style="display:none">No chats yet</div>
+      </div>
+    </div>
+
+    <!-- Sidebar footer -->
+    <div class="sidebar-footer">
+      <button class="btn-new" @click="newChat()">
+        ✚ New chat
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN — CHAT
+       ============================================================ -->
+  <main>
+
+    <!-- Chat area -->
+    <div class="chat-area" id="chatArea">
+
+      <!-- Welcome screen (no messages) -->
+      <div class="welcome" x-show="activeMessages.length === 0">
+        <div class="welcome-icon">⬡</div>
+        <h2>Remnant is ready</h2>
+        <p>A Redis-backed, hierarchical multi-agent framework with long-term memory and unified security.</p>
+        <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;justify-content:center">
+          <button class="btn-primary" style="font-size:12px;padding:6px 12px" @click="inputText='What can you help me with?'; send()">What can you do?</button>
+          <button class="btn-primary" style="font-size:12px;padding:6px 12px;background:var(--bg3);color:var(--text-dim);border:1px solid var(--border)" @click="openSettings()">Configure API keys</button>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <template x-for="msg in activeMessages" :key="msg.id">
+        <div class="msg-row" :class="msg.role">
+
+          <!-- User message -->
+          <template x-if="msg.role === 'user'">
+            <div>
+              <div class="msg-meta user">
+                <span class="who">You</span>
+                <span x-text="msg.ts"></span>
+              </div>
+              <div class="msg-bubble" style="align-self:flex-end;max-width:75%;margin-left:auto">
+                <div class="md-content" x-html="renderMd(msg.text)"></div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Agent message -->
+          <template x-if="msg.role === 'agent'">
+            <div>
+              <div class="msg-meta agent">
+                <span class="who">Remnant</span>
+                <span x-text="msg.ts"></span>
+                <span x-show="msg.streaming" style="display:flex;align-items:center;gap:5px;margin-left:4px">
+                  <span class="spinner"></span>
+                  <span style="font-size:11px;color:var(--accent)">thinking…</span>
+                </span>
+              </div>
+              <div class="msg-bubble">
+
+                <!-- Step group: badge lines -->
+                <div x-show="hasBadges(msg)" class="step-group" style="display:none">
+                  <div class="step-header" @click="msg.stepOpen = !msg.stepOpen">
+                    <div class="step-dot"></div>
+                    <span>Agent process</span>
+                    <span style="margin-left:8px;font-size:10px;color:var(--text-muted)" x-text="badgeParts(msg).length + ' step' + (badgeParts(msg).length !== 1 ? 's' : '')"></span>
+                    <span class="step-toggle" x-text="msg.stepOpen ? '▲' : '▼'"></span>
+                  </div>
+                  <div class="step-body" x-show="msg.stepOpen">
+                    <template x-for="(part, pi) in badgeParts(msg)" :key="pi">
+                      <div class="badge-line">
+                        <span :class="badgeCls(part.cls)" x-text="part.badge"></span>
+                        <span class="badge-text" x-text="part.text"></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Markdown response -->
+                <template x-for="(part, pi) in finalMdParts(msg)" :key="pi">
+                  <div class="md-content" x-html="renderMd(part.text)" style="margin-top:8px"></div>
+                </template>
+
+                <!-- Streaming: raw text while no parts yet -->
+                <template x-if="msg.streaming && msg.parts.length === 0">
+                  <div style="color:var(--text-dim);font-size:13px">
+                    <span class="streaming-cursor"></span>
+                  </div>
+                </template>
+
+                <!-- Streaming cursor at end -->
+                <template x-if="msg.streaming && msg.parts.length > 0">
+                  <span class="streaming-cursor" style="margin-left:2px"></span>
+                </template>
+              </div>
+            </div>
+          </template>
+
+        </div>
+      </template>
+
+    </div>
+
+    <!-- ============================================================
+         INPUT AREA
+         ============================================================ -->
+    <div class="input-area">
+      <div class="input-box">
+        <textarea
+          id="msgInput"
+          placeholder="Send a message… (Shift+Enter for new line)"
+          rows="1"
+          x-model="inputText"
+          @keydown="handleKeydown($event)"
+          @input="autoResize()"
+          :disabled="isStreaming"
+        ></textarea>
+        <div class="input-actions">
+          <button class="btn-icon" title="Attach file (coming soon)" disabled>📎</button>
+          <button class="btn-send" @click="send()" :disabled="isStreaming || !inputText.trim()" title="Send (Enter)">
+            <span x-show="!isStreaming">➤</span>
+            <span x-show="isStreaming" class="spinner" style="border-color:rgba(255,255,255,0.3);border-top-color:#fff"></span>
+          </button>
+        </div>
+      </div>
+      <div style="text-align:center;font-size:10px;color:var(--text-muted);margin-top:6px">
+        Remnant may make mistakes. Verify important information. ·
+        <span x-text="'Project: ' + activeProjectName" style="color:var(--accent)"></span>
+      </div>
+    </div>
+
+  </main><!-- /main -->
+
+</div><!-- /#app -->
+
+<!-- ================================================================
+     MEMORY PANEL (slide-in from right)
+     ================================================================ -->
+<div class="memory-panel" :class="{ open: memoryOpen }">
+  <div class="memory-panel-header">
+    <span style="font-size:16px;margin-right:8px">🧠</span>
+    <span class="memory-panel-title">Memory</span>
+    <button class="modal-close" @click="memoryOpen = false">✕</button>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="memory-stats">
+    <div>
+      Chunks: <span class="memory-stat-val" x-text="memoryStats.total_chunks || 0"></span>
+    </div>
+    <div>
+      Projects: <span class="memory-stat-val" x-text="memoryStats.total_projects || 0"></span>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="memory-search">
+    <input
+      type="text"
+      placeholder="Search memory…"
+      x-model="memorySearch"
+      @input.debounce.400ms="searchMemory()"
+      @keydown.enter="searchMemory()"
+    />
+  </div>
+
+  <!-- Chunks list -->
+  <div class="memory-chunks-list">
+    <template x-for="chunk in memoryChunks" :key="chunk.id || chunk.chunk_id">
+      <div class="memory-chunk">
+        <div class="memory-chunk-text" x-text="chunkLabel(chunk)"></div>
+        <div class="memory-chunk-meta">
+          <span class="memory-tag" x-text="chunk.chunk_type || 'log'"></span>
+          <span class="memory-tag" x-text="chunk.project_id || 'global'" x-show="chunk.project_id"></span>
+          <span class="memory-tag" x-text="'score: ' + formatScore(chunk.useful_score)"></span>
+        </div>
+      </div>
+    </template>
+    <div class="empty-state" x-show="memoryChunks.length === 0">
+      No memory chunks yet.<br/>Start chatting to build memory.
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     SETTINGS MODAL
+     ================================================================ -->
+<div class="modal-backdrop" x-show="settingsOpen" @click.self="settingsOpen = false" style="display:none" x-transition>
+  <div class="modal" @click.stop>
+    <div class="tab-bar">
+      <div class="tab-item" :class="{ active: settingsTab === 'general' }" @click="settingsTab = 'general'">General</div>
+      <div class="tab-item" :class="{ active: settingsTab === 'usage' }"   @click="settingsTab = 'usage'; loadUsage()">Usage</div>
+      <div class="tab-item" :class="{ active: settingsTab === 'about' }"   @click="settingsTab = 'about'">About</div>
+    </div>
+
+    <div class="modal-header" style="padding-top:14px">
+      <span class="modal-title">Settings</span>
+      <button class="modal-close" @click="settingsOpen = false">✕</button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- General tab -->
+      <div x-show="settingsTab === 'general'">
+        <div class="form-group">
+          <label class="form-label">API Keys</label>
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px">Set API keys in your <code style="background:var(--bg4);padding:2px 5px;border-radius:3px">.env</code> file and restart the container.</p>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 12px">
+              <span style="font-size:13px;color:var(--text-dim);flex:1">ANTHROPIC_API_KEY</span>
+              <span style="font-size:11px;padding:2px 7px;border-radius:3px;background:rgba(239,68,68,0.15);color:var(--err)">not set</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 12px">
+              <span style="font-size:13px;color:var(--text-dim);flex:1">REMNANT_MASTER_KEY</span>
+              <span style="font-size:11px;padding:2px 7px;border-radius:3px;background:rgba(239,68,68,0.15);color:var(--err)">not set (no encryption)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:20px">
+          <label class="form-label">Quick Links</label>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <a href="/docs" target="_blank" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--border);font-size:13px;color:var(--text-dim)">
+              📖 <span>API Docs (Swagger)</span> <span style="margin-left:auto;font-size:10px">↗</span>
+            </a>
+            <a href="/health" target="_blank" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--border);font-size:13px;color:var(--text-dim)">
+              💚 <span>Health Check</span> <span style="margin-left:auto;font-size:10px">↗</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Usage tab -->
+      <div x-show="settingsTab === 'usage'" style="display:none">
+        <div x-show="!usageSummary.tokens_today && usageSummary.tokens_today !== 0" class="empty-state">Loading usage…</div>
+
+        <template x-if="usageSummary.tokens_today !== undefined">
+          <div>
+            <div class="form-group">
+              <label class="form-label">Today's Token Usage</label>
+              <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+                  <span style="font-size:13px;color:var(--text-dim)">Tokens</span>
+                  <span style="font-size:18px;font-weight:700;color:var(--hover)" x-text="(usageSummary.tokens_today || 0).toLocaleString()"></span>
+                </div>
+                <div class="usage-bar-wrap">
+                  <div class="usage-bar-label">
+                    <span x-text="(usageSummary.tokens_today || 0).toLocaleString() + ' used'"></span>
+                    <span x-text="usageSummary.tokens_limit ? usageSummary.tokens_limit.toLocaleString() + ' limit' : 'no limit'"></span>
+                  </div>
+                  <div class="usage-bar">
+                    <div class="usage-bar-fill" :style="'width:' + usagePercent(usageSummary.tokens_today, usageSummary.tokens_limit) + '%'"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Cost (USD)</label>
+              <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline">
+                  <span style="font-size:13px;color:var(--text-dim)">Today</span>
+                  <span style="font-size:18px;font-weight:700;color:var(--hover)" x-text="'$' + (usageSummary.cost_usd_today || 0).toFixed(4)"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- About tab -->
+      <div x-show="settingsTab === 'about'" style="display:none">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:48px;height:48px;background:var(--accent);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px">⬡</div>
+            <div>
+              <div style="font-size:16px;font-weight:700">Remnant</div>
+              <div style="font-size:12px;color:var(--text-dim)">v1.0.0 · Docker-first multi-agent framework</div>
+            </div>
+          </div>
+
+          <div style="font-size:13px;color:var(--text-dim);line-height:1.7">
+            A Redis-backed, hierarchical multi-agent framework with HNSW vector memory,
+            LLM provider management with budgets, unified security, and MCP integration.
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;gap:8px;font-size:12px">
+              <span style="color:var(--text-muted);width:120px">Embeddings</span>
+              <span style="color:var(--text)">sentence-transformers/all-MiniLM-L6-v2 (384d)</span>
+            </div>
+            <div style="display:flex;gap:8px;font-size:12px">
+              <span style="color:var(--text-muted);width:120px">Vector store</span>
+              <span style="color:var(--text)">Redis Stack (HNSW index)</span>
+            </div>
+            <div style="display:flex;gap:8px;font-size:12px">
+              <span style="color:var(--text-muted);width:120px">Agent loop</span>
+              <span style="color:var(--text)">RECALL → PLAN → LLM → TOOLS → RECORD → CURATE</span>
+            </div>
+            <div style="display:flex;gap:8px;font-size:12px">
+              <span style="color:var(--text-muted);width:120px">MCP server</span>
+              <span style="color:var(--text)">POST /mcp (JSON-RPC 2.0)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

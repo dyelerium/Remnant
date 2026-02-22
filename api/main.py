@@ -201,9 +201,12 @@ def create_app() -> FastAPI:
     app.include_router(admin_router, prefix="/api")
     app.include_router(mcp_router)
 
-    # Serve Web UI (if built)
+    # Serve Web UI — public/ (no build step) takes priority, then dist/ if built
+    webui_public = Path("webui/public")
     webui_dist = Path("webui/dist")
-    if webui_dist.exists():
+    if webui_public.exists():
+        app.mount("/", StaticFiles(directory=str(webui_public), html=True), name="webui")
+    elif webui_dist.exists():
         app.mount("/", StaticFiles(directory=str(webui_dist), html=True), name="webui")
 
     return app
