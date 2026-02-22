@@ -176,6 +176,9 @@ class Planner:
         """Parse LLM JSON output into SubTask list."""
         import json, re
 
+        # Strip <think>...</think> blocks (reasoning models like stepfun, qwen)
+        content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+
         # Extract JSON array from potentially wrapped response
         match = re.search(r"\[.*\]", content, re.DOTALL)
         if not match:

@@ -240,10 +240,23 @@ class LLMClient:
             temperature=temperature,
             stream=True,
         )
+        in_think_block = False
         async for chunk in stream:
             delta = chunk.choices[0].delta.content
-            if delta:
-                yield delta
+            if not delta:
+                continue
+            # Strip <think>...</think> blocks emitted by reasoning models
+            if "<think>" in delta:
+                in_think_block = True
+            if in_think_block:
+                if "</think>" in delta:
+                    in_think_block = False
+                    # Yield only the part after </think>
+                    after = delta.split("</think>", 1)[1]
+                    if after:
+                        yield after
+                continue
+            yield delta
 
     # -- Ollama --
 

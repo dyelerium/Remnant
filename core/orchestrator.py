@@ -110,41 +110,51 @@ class Orchestrator:
                 yield chunk
 
         else:
-            # Multi-task: run in parallel background lanes, aggregate
-            results: dict[str, str] = {}
-            tasks_done = asyncio.Event()
-            remaining = [len(plan.tasks)]
-
-            async def run_task(sub_task):
-                agent_node = self._create_agent_node(sub_task, conductor, project_id)
+            # 0 tasks means plan parsing failed — fall back to direct single-task run
+            if not plan.tasks:
+                logger.warning("[ORCHESTRATOR] Empty plan, falling back to single task")
+                from .agent_graph import AgentEdge, EdgeType
+                from .planner import SubTask
+                fallback_task = SubTask(task_id="t1", description=message, agent_type="default")
+                agent_node = self._create_agent_node(fallback_task, conductor, project_id)
                 self.graph.add_node(agent_node)
-                output_parts = []
+                lane = self.lanes.create_lane(priority=LanePriority.FOREGROUND, project_id=project_id)
+                await self.lanes.start_lane_worker(lane.lane_id)
                 async for chunk in self.runtime.run_stream(
-                    message=sub_task.description,
+                    message=message,
                     agent_node=agent_node,
                     project_id=project_id,
                     session_id=session_id,
                     channel=channel,
                 ):
-                    output_parts.append(chunk)
-                results[sub_task.task_id] = "".join(output_parts)
-                remaining[0] -= 1
-                if remaining[0] == 0:
-                    tasks_done.set()
+                    yield chunk
+            else:
+                # Multi-task: run in parallel lanes, aggregate
+                results: dict[str, str] = {}
 
-            # Launch all tasks concurrently
-            aws = [run_task(t) for t in plan.tasks]
-            asyncio.gather(*aws)
+                async def run_task(sub_task):
+                    agent_node = self._create_agent_node(sub_task, conductor, project_id)
+                    self.graph.add_node(agent_node)
+                    output_parts = []
+                    async for chunk in self.runtime.run_stream(
+                        message=sub_task.description,
+                        agent_node=agent_node,
+                        project_id=project_id,
+                        session_id=session_id,
+                        channel=channel,
+                    ):
+                        output_parts.append(chunk)
+                    results[sub_task.task_id] = "".join(output_parts)
 
-            # Yield a planning summary
-            yield f"[Planning {len(plan.tasks)} parallel tasks…]\n\n"
-            await tasks_done.wait()
+                # Launch all tasks concurrently and wait
+                yield f"[Planning {len(plan.tasks)} parallel tasks…]\n\n"
+                await asyncio.gather(*[run_task(t) for t in plan.tasks])
 
-            # Yield aggregated results
-            for task in plan.tasks:
-                result = results.get(task.task_id, "")
-                if result:
-                    yield f"**{task.description}**\n{result}\n\n"
+                # Yield aggregated results
+                for task in plan.tasks:
+                    result = results.get(task.task_id, "")
+                    if result:
+                        yield f"**{task.description}**\n{result}\n\n"
 
         # Cleanup conductor node
         self.graph.update_status(conductor.agent_id, NodeStatus.DONE)
