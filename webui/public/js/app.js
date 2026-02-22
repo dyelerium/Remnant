@@ -21,6 +21,11 @@ const BADGE_MAP = {
   '[ERR]': 'err', '[SYS]': 'sys',
 };
 
+const BADGE_LABELS = {
+  gen: 'Generating', use: 'Using tool', exe: 'Executing',
+  mcp: 'MCP', mem: 'Memory', rec: 'Recording', err: 'Error', sys: 'System',
+};
+
 function parseBadgeLine(text) {
   for (const [tag, cls] of Object.entries(BADGE_MAP)) {
     if (text.startsWith(tag)) {
@@ -30,11 +35,6 @@ function parseBadgeLine(text) {
   return null;
 }
 
-/**
- * Split raw agent output into structured parts:
- * - badge lines (GEN/USE/EXE/…)
- * - markdown text blocks
- */
 function parseAgentOutput(raw) {
   const lines = raw.split('\n');
   const parts = [];
@@ -59,6 +59,31 @@ function parseAgentOutput(raw) {
   return parts;
 }
 
+/* ---- LocalStorage persistence ---- */
+const LS_KEY = 'remnant_chats_v2';
+
+function saveChats(chats) {
+  try {
+    // Only persist last 50 chats, trim messages to last 200 each
+    const toSave = chats.slice(0, 50).map(c => ({
+      ...c,
+      messages: (c.messages || []).slice(-200).map(m => ({
+        ...m,
+        streaming: false,  // never save in-progress state
+      })),
+    }));
+    localStorage.setItem(LS_KEY, JSON.stringify(toSave));
+  } catch (_) {}
+}
+
+function loadChats() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) || [];
+  } catch (_) { return []; }
+}
+
 /* ---- Helpers ---- */
 function tsNow() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -80,7 +105,7 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('remnantApp', () => ({
     /* --- WS state --- */
     ws: null,
-    wsStatus: 'disconnected',  // connected | degraded | disconnected
+    wsStatus: 'disconnected',
     wsRetries: 0,
     wsRetryTimer: null,
 
@@ -89,7 +114,7 @@ document.addEventListener('alpine:init', () => {
     activeProjectId: null,
 
     /* --- Chats --- */
-    chats: [],           // [{ id, title, projectId, messages: [] }]
+    chats: [],
     activeChatId: null,
     get activeChat() { return this.chats.find(c => c.id === this.activeChatId) || null; },
     get activeMessages() { return this.activeChat?.messages || []; },
@@ -97,6 +122,8 @@ document.addEventListener('alpine:init', () => {
     /* --- Input --- */
     inputText: '',
     isStreaming: false,
+    currentActivity: '',   // what the agent is currently doing
+    sseAbort: null,        // AbortController for SSE cancellation
 
     /* --- Memory panel --- */
     memoryOpen: false,
@@ -113,10 +140,21 @@ document.addEventListener('alpine:init', () => {
        INIT
        ================================================================ */
     async init() {
+      // Restore chats from localStorage
+      const saved = loadChats();
+      if (saved.length > 0) {
+        this.chats = saved;
+        this.activeChatId = saved[0].id;
+      } else {
+        this.newChat();
+      }
+
       this.connectWS();
       await this.loadProjects();
-      this.newChat();
       await this.loadMemoryStats();
+
+      // Auto-save chats whenever they change
+      this.$watch('chats', (v) => saveChats(v), { deep: true });
     },
 
     /* ================================================================
@@ -128,18 +166,56 @@ document.addEventListener('alpine:init', () => {
     },
 
     connectWS() {
-      if (this.ws) { try { this.ws.close(); } catch (_) {} }
+      if (this.ws) {
+        try { this.ws.onclose = null; this.ws.close(); } catch (_) {}
+        this.ws = null;
+      }
 
-      this.ws = new WebSocket(this.wsUrl());
+      try {
+        this.ws = new WebSocket(this.wsUrl());
+      } catch (e) {
+        this.wsStatus = 'disconnected';
+        this.scheduleReconnect();
+        return;
+      }
 
       this.ws.onopen = () => {
         this.wsStatus = 'connected';
         this.wsRetries = 0;
         clearTimeout(this.wsRetryTimer);
+        this.wsRetryTimer = null;
+        // If we were streaming when WS dropped, clean up
+        if (this.isStreaming) {
+          this.isStreaming = false;
+          this.currentActivity = '';
+          const chat = this.activeChat;
+          if (chat) {
+            const last = chat.messages[chat.messages.length - 1];
+            if (last?.streaming) {
+              last.streaming = false;
+              last.raw += '\n[SYS] Connection restored — please resend.';
+              last.parts = parseAgentOutput(last.raw);
+            }
+          }
+        }
       };
 
-      this.ws.onclose = () => {
+      this.ws.onclose = (ev) => {
         this.wsStatus = 'disconnected';
+        // If mid-stream, mark it failed
+        if (this.isStreaming) {
+          this.isStreaming = false;
+          this.currentActivity = '';
+          const chat = this.activeChat;
+          if (chat) {
+            const last = chat.messages[chat.messages.length - 1];
+            if (last?.streaming) {
+              last.streaming = false;
+              last.raw += '\n[ERR] Connection lost.';
+              last.parts = parseAgentOutput(last.raw);
+            }
+          }
+        }
         this.scheduleReconnect();
       };
 
@@ -156,11 +232,10 @@ document.addEventListener('alpine:init', () => {
 
     scheduleReconnect() {
       if (this.wsRetryTimer) return;
-      const delay = Math.min(1000 * 2 ** this.wsRetries, 16000);
+      const delay = Math.min(1000 * Math.pow(2, this.wsRetries), 16000);
       this.wsRetryTimer = setTimeout(() => {
         this.wsRetryTimer = null;
         this.wsRetries++;
-        this.wsStatus = 'degraded';
         this.connectWS();
       }, delay);
     },
@@ -169,17 +244,17 @@ document.addEventListener('alpine:init', () => {
       const chat = this.activeChat;
       if (!chat) return;
 
-      if (msg.type === 'start') {
-        // Already added the agent message placeholder when sending
-        return;
-      }
+      if (msg.type === 'start') return;
 
       if (msg.type === 'chunk') {
         const content = msg.content || '';
         const last = chat.messages[chat.messages.length - 1];
-        if (last && last.role === 'agent') {
+        if (last?.role === 'agent') {
           last.raw += content;
           last.parts = parseAgentOutput(last.raw);
+          // Update activity indicator from latest badge
+          const lastBadge = [...last.parts].reverse().find(p => p.type === 'badge');
+          if (lastBadge) this.currentActivity = BADGE_LABELS[lastBadge.cls] || lastBadge.badge;
         }
         this.scrollToBottom();
         return;
@@ -187,18 +262,15 @@ document.addEventListener('alpine:init', () => {
 
       if (msg.type === 'done') {
         this.isStreaming = false;
+        this.currentActivity = '';
         const last = chat.messages[chat.messages.length - 1];
-        if (last && last.role === 'agent') {
+        if (last?.role === 'agent') {
           last.streaming = false;
-          // Final render
           last.parts = parseAgentOutput(last.raw);
         }
-        // Update chat title from first user message
-        if (chat.title === 'New chat' && chat.messages.length >= 1) {
+        if (chat.title === 'New chat') {
           const firstUser = chat.messages.find(m => m.role === 'user');
-          if (firstUser) {
-            chat.title = firstUser.text.slice(0, 40) + (firstUser.text.length > 40 ? '…' : '');
-          }
+          if (firstUser) chat.title = firstUser.text.slice(0, 40) + (firstUser.text.length > 40 ? '…' : '');
         }
         this.scrollToBottom();
         return;
@@ -206,8 +278,9 @@ document.addEventListener('alpine:init', () => {
 
       if (msg.error) {
         this.isStreaming = false;
+        this.currentActivity = '';
         const last = chat.messages[chat.messages.length - 1];
-        if (last && last.role === 'agent') {
+        if (last?.role === 'agent') {
           last.raw += `\n[ERR] ${msg.error}`;
           last.parts = parseAgentOutput(last.raw);
           last.streaming = false;
@@ -226,13 +299,11 @@ document.addEventListener('alpine:init', () => {
       const chat = this.activeChat;
       const sessionId = chat.sessionId;
 
-      // Add user message
       chat.messages.push({ id: uid(), role: 'user', text, ts: tsNow() });
       this.inputText = '';
       this.autoResize();
       this.scrollToBottom();
 
-      // Add agent placeholder
       const agentMsg = {
         id: uid(),
         role: 'agent',
@@ -244,6 +315,7 @@ document.addEventListener('alpine:init', () => {
       };
       chat.messages.push(agentMsg);
       this.isStreaming = true;
+      this.currentActivity = 'Thinking';
       this.scrollToBottom();
 
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -253,12 +325,45 @@ document.addEventListener('alpine:init', () => {
           session_id: sessionId,
         }));
       } else {
-        // Fallback: SSE endpoint
         await this.sendViaSSE(text, chat, agentMsg, sessionId);
       }
     },
 
+    /* ================================================================
+       STOP / CANCEL
+       ================================================================ */
+    stop() {
+      if (!this.isStreaming) return;
+
+      // Abort SSE if active
+      if (this.sseAbort) {
+        this.sseAbort.abort();
+        this.sseAbort = null;
+      }
+
+      // For WS, just close and reconnect — server will stop when client disconnects
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        // Don't close the WS permanently — send a cancel signal if supported,
+        // otherwise just mark locally as stopped
+      }
+
+      this.isStreaming = false;
+      this.currentActivity = '';
+      const chat = this.activeChat;
+      if (chat) {
+        const last = chat.messages[chat.messages.length - 1];
+        if (last?.streaming) {
+          last.streaming = false;
+          last.raw += '\n[SYS] Stopped by user.';
+          last.parts = parseAgentOutput(last.raw);
+        }
+      }
+    },
+
     async sendViaSSE(text, chat, agentMsg, sessionId) {
+      const controller = new AbortController();
+      this.sseAbort = controller;
+
       try {
         const resp = await fetch('/api/chat', {
           method: 'POST',
@@ -269,6 +374,7 @@ document.addEventListener('alpine:init', () => {
             session_id: sessionId,
             channel: 'api',
           }),
+          signal: controller.signal,
         });
 
         const reader = resp.body.getReader();
@@ -290,20 +396,32 @@ document.addEventListener('alpine:init', () => {
               if (msg.type === 'chunk') {
                 agentMsg.raw += msg.content || '';
                 agentMsg.parts = parseAgentOutput(agentMsg.raw);
+                const lastBadge = [...agentMsg.parts].reverse().find(p => p.type === 'badge');
+                if (lastBadge) this.currentActivity = BADGE_LABELS[lastBadge.cls] || lastBadge.badge;
                 this.scrollToBottom();
               } else if (msg.type === 'done') {
                 agentMsg.streaming = false;
                 this.isStreaming = false;
+                this.currentActivity = '';
+                if (chat.title === 'New chat') {
+                  const firstUser = chat.messages.find(m => m.role === 'user');
+                  if (firstUser) chat.title = firstUser.text.slice(0, 40) + (firstUser.text.length > 40 ? '…' : '');
+                }
                 this.scrollToBottom();
               }
             } catch (_) {}
           }
         }
       } catch (e) {
-        agentMsg.raw += `\n[ERR] Failed to connect: ${e.message}`;
-        agentMsg.parts = parseAgentOutput(agentMsg.raw);
+        if (e.name !== 'AbortError') {
+          agentMsg.raw += `\n[ERR] Failed to connect: ${e.message}`;
+          agentMsg.parts = parseAgentOutput(agentMsg.raw);
+        }
         agentMsg.streaming = false;
         this.isStreaming = false;
+        this.currentActivity = '';
+      } finally {
+        this.sseAbort = null;
       }
     },
 
@@ -317,14 +435,27 @@ document.addEventListener('alpine:init', () => {
         projectId: this.activeProjectId,
         sessionId: uid(),
         messages: [],
-        ts: new Date(),
+        ts: new Date().toISOString(),
       };
       this.chats.unshift(chat);
       this.activeChatId = chat.id;
     },
 
     selectChat(id) {
+      if (this.isStreaming) return;  // Don't switch mid-stream
       this.activeChatId = id;
+      this.$nextTick(() => this.scrollToBottom());
+    },
+
+    deleteChat(id) {
+      this.chats = this.chats.filter(c => c.id !== id);
+      if (this.activeChatId === id) {
+        if (this.chats.length > 0) {
+          this.activeChatId = this.chats[0].id;
+        } else {
+          this.newChat();
+        }
+      }
     },
 
     /* ================================================================
@@ -350,9 +481,7 @@ document.addEventListener('alpine:init', () => {
        ================================================================ */
     async toggleMemory() {
       this.memoryOpen = !this.memoryOpen;
-      if (this.memoryOpen) {
-        await this.loadRecentMemory();
-      }
+      if (this.memoryOpen) await this.loadRecentMemory();
     },
 
     async loadMemoryStats() {
@@ -374,7 +503,7 @@ document.addEventListener('alpine:init', () => {
 
     async searchMemory() {
       const q = this.memorySearch.trim();
-      if (!q) { return this.loadRecentMemory(); }
+      if (!q) return this.loadRecentMemory();
       try {
         const resp = await fetch('/api/memory/search', {
           method: 'POST',
@@ -426,8 +555,10 @@ document.addEventListener('alpine:init', () => {
     handleKeydown(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        this.send();
+        if (this.isStreaming) this.stop();
+        else this.send();
       }
+      if (e.key === 'Escape' && this.isStreaming) this.stop();
     },
 
     badgeCls(cls) { return `badge ${cls}`; },
@@ -437,9 +568,6 @@ document.addEventListener('alpine:init', () => {
       navigator.clipboard.writeText(code).catch(() => {});
     },
 
-    /* ================================================================
-       RENDER HELPERS (for template)
-       ================================================================ */
     hasBadges(msg) {
       return msg.parts && msg.parts.some(p => p.type === 'badge');
     },
@@ -453,23 +581,23 @@ document.addEventListener('alpine:init', () => {
     },
 
     get statusLabel() {
-      return { connected: 'CONNECTED', degraded: 'DEGRADED', disconnected: 'OFFLINE' }[this.wsStatus] || 'OFFLINE';
+      if (this.isStreaming) return this.currentActivity || 'Thinking…';
+      return { connected: 'Connected', degraded: 'Reconnecting…', disconnected: 'Offline' }[this.wsStatus] || 'Offline';
+    },
+
+    get statusCls() {
+      if (this.isStreaming) return 'streaming';
+      return this.wsStatus;
     },
 
     get activeProjectName() {
-      if (!this.activeProjectId) return 'default';
+      if (!this.activeProjectId) return 'Default';
       const p = this.projects.find(p => p.project_id === this.activeProjectId);
       return p ? (p.name || p.project_id) : this.activeProjectId;
     },
 
-    formatScore(s) {
-      return parseFloat(s || 0).toFixed(1);
-    },
-
-    chunkLabel(chunk) {
-      return chunk.text_excerpt || chunk.text || '';
-    },
-
+    formatScore(s) { return parseFloat(s || 0).toFixed(1); },
+    chunkLabel(chunk) { return chunk.text_excerpt || chunk.text || ''; },
     usagePercent(used, max) {
       if (!max || !used) return 0;
       return Math.min(100, Math.round((used / max) * 100));

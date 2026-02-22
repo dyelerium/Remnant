@@ -131,8 +131,19 @@ header {
   transition: background var(--transition);
 }
 .status-dot.connected    { background: #10b981; box-shadow: 0 0 6px #10b981; }
-.status-dot.degraded     { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+.status-dot.degraded     { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; animation: pulse-yellow 1.2s infinite; }
 .status-dot.disconnected { background: #ef4444; }
+.status-dot.streaming    { background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: pulse-accent 1s infinite; }
+.status-pill.streaming   { border-color: var(--accent); color: var(--hover); }
+
+@keyframes pulse-accent {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+@keyframes pulse-yellow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
 
 .header-btn {
   width: 34px; height: 34px;
@@ -524,6 +535,32 @@ main {
 .btn-send:hover { background: var(--hover); }
 .btn-send:active { transform: scale(0.95); }
 .btn-send:disabled { background: var(--bg4); color: var(--text-muted); cursor: not-allowed; }
+
+.btn-stop {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(239,68,68,0.15);
+  border: 1px solid rgba(239,68,68,0.4);
+  color: #f87171;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex; align-items: center; gap: 6px;
+  transition: background var(--transition), border-color var(--transition);
+}
+.btn-stop:hover { background: rgba(239,68,68,0.28); border-color: rgba(239,68,68,0.7); }
+
+.chat-delete-btn {
+  position: absolute;
+  right: 4px;
+  width: 18px; height: 18px;
+  border-radius: 3px;
+  font-size: 9px;
+  color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--transition), color var(--transition);
+}
+.chat-delete-btn:hover { background: rgba(239,68,68,0.2); color: #f87171; }
 
 .btn-icon {
   width: 32px; height: 32px;

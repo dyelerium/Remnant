@@ -49,9 +49,9 @@
 
     <div class="header-spacer"></div>
 
-    <!-- Connection status -->
-    <div class="status-pill">
-      <div class="status-dot" :class="wsStatus"></div>
+    <!-- Connection / activity status -->
+    <div class="status-pill" :class="{ streaming: isStreaming }">
+      <div class="status-dot" :class="statusCls"></div>
       <span x-text="statusLabel"></span>
     </div>
 
@@ -100,10 +100,11 @@
         <div class="sidebar-section-title">Chats</div>
 
         <template x-for="chat in chats" :key="chat.id">
-          <div class="sidebar-item" :class="{ active: activeChatId === chat.id }" @click="selectChat(chat.id)">
+          <div class="sidebar-item" :class="{ active: activeChatId === chat.id }" @click="selectChat(chat.id)" style="position:relative">
             <span class="item-icon">💬</span>
             <span class="item-label" x-text="chat.title"></span>
             <span class="item-badge" x-text="chat.messages.filter(m=>m.role==='user').length" x-show="chat.messages.length > 0"></span>
+            <button class="chat-delete-btn" @click.stop="deleteChat(chat.id)" title="Delete chat" x-show="activeChatId === chat.id">✕</button>
           </div>
         </template>
 
@@ -163,7 +164,7 @@
                 <span x-text="msg.ts"></span>
                 <span x-show="msg.streaming" style="display:flex;align-items:center;gap:5px;margin-left:4px">
                   <span class="spinner"></span>
-                  <span style="font-size:11px;color:var(--accent)">thinking…</span>
+                  <span style="font-size:11px;color:var(--accent)" x-text="currentActivity || 'Thinking…'"></span>
                 </span>
               </div>
               <div class="msg-bubble">
@@ -226,10 +227,12 @@
           :disabled="isStreaming"
         ></textarea>
         <div class="input-actions">
-          <button class="btn-icon" title="Attach file (coming soon)" disabled>📎</button>
-          <button class="btn-send" @click="send()" :disabled="isStreaming || !inputText.trim()" title="Send (Enter)">
-            <span x-show="!isStreaming">➤</span>
-            <span x-show="isStreaming" class="spinner" style="border-color:rgba(255,255,255,0.3);border-top-color:#fff"></span>
+          <!-- Stop button — shown only while streaming -->
+          <button class="btn-stop" @click="stop()" x-show="isStreaming" title="Stop (Esc)">
+            ■ Stop
+          </button>
+          <button class="btn-send" @click="send()" :disabled="isStreaming || !inputText.trim()" x-show="!isStreaming" title="Send (Enter)">
+            ➤
           </button>
         </div>
       </div>
