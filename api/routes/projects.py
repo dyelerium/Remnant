@@ -18,6 +18,12 @@ class ProjectCreate(BaseModel):
     enable_mcp: bool = False
 
 
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    budget_usd_daily: Optional[float] = None
+
+
 @router.get("/projects")
 async def list_projects(request: Request) -> dict:
     pm = request.app.state.project_manager
@@ -39,6 +45,17 @@ async def get_project(project_id: str, request: Request) -> dict:
     if not project:
         raise HTTPException(status_code=404, detail=f"Project {project_id!r} not found")
     return {"project": project}
+
+
+@router.put("/projects/{project_id}")
+async def update_project(project_id: str, body: ProjectUpdate, request: Request) -> dict:
+    pm = request.app.state.project_manager
+    project = pm.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project {project_id!r} not found")
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    updated = pm.update(project_id, updates)
+    return {"project": updated}
 
 
 @router.delete("/projects/{project_id}")

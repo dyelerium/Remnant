@@ -59,43 +59,33 @@ function parseAgentOutput(raw) {
   return parts;
 }
 
-/* ---- LocalStorage persistence ---- */
-const LS_KEY = 'remnant_chats_v2';
+/* ---- LocalStorage helpers ---- */
+const LS_CHATS  = 'remnant_chats_v2';
+const LS_WIZARD = 'remnant_wizard_done';
 
 function saveChats(chats) {
   try {
-    // Only persist last 50 chats, trim messages to last 200 each
     const toSave = chats.slice(0, 50).map(c => ({
       ...c,
-      messages: (c.messages || []).slice(-200).map(m => ({
-        ...m,
-        streaming: false,  // never save in-progress state
-      })),
+      messages: (c.messages || []).slice(-200).map(m => ({ ...m, streaming: false })),
     }));
-    localStorage.setItem(LS_KEY, JSON.stringify(toSave));
+    localStorage.setItem(LS_CHATS, JSON.stringify(toSave));
   } catch (_) {}
 }
 
 function loadChats() {
   try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) || [];
+    const raw = localStorage.getItem(LS_CHATS);
+    return raw ? (JSON.parse(raw) || []) : [];
   } catch (_) { return []; }
 }
 
-/* ---- Helpers ---- */
+/* ---- Misc helpers ---- */
 function tsNow() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
-
-function uid() {
-  return Math.random().toString(36).slice(2);
-}
-
-function renderMd(text) {
-  return marked.parse(text || '');
-}
+function uid() { return Math.random().toString(36).slice(2); }
+function renderMd(text) { return marked.parse(text || ''); }
 
 /* ============================================================
    Alpine.js main component
@@ -110,8 +100,11 @@ document.addEventListener('alpine:init', () => {
     wsRetryTimer: null,
 
     /* --- Projects --- */
-    projects: [],
+    projects: [],              // from API
     activeProjectId: null,
+    expandedProjects: new Set(),
+    editingProjectId: null,
+    editingProjectName: '',
 
     /* --- Chats --- */
     chats: [],
@@ -119,28 +112,70 @@ document.addEventListener('alpine:init', () => {
     get activeChat() { return this.chats.find(c => c.id === this.activeChatId) || null; },
     get activeMessages() { return this.activeChat?.messages || []; },
 
+    /* --- View state --- */
+    activeView: null,         // null = chat, 'project-memory-<id>' = project memory view
+    projectMemoryContent: '',
+
     /* --- Input --- */
     inputText: '',
     isStreaming: false,
-    currentActivity: '',   // what the agent is currently doing
-    sseAbort: null,        // AbortController for SSE cancellation
+    currentActivity: '',
+    sseAbort: null,
 
     /* --- Memory panel --- */
     memoryOpen: false,
+    memoryTab: 'recent',
     memorySearch: '',
     memoryChunks: [],
     memoryStats: {},
+    memoryFiles: [],
+    editingFile: null,
+    editingFileContent: '',
 
     /* --- Settings modal --- */
     settingsOpen: false,
-    settingsTab: 'general',
+    settingsTab: 'api',
+    settingsData: {},
     usageSummary: {},
+    availableModels: [],
+    connectorForm: { telegram: '', whatsapp: '' },
+    settingsEditingFile: null,
+    settingsEditingContent: '',
+
+    /* --- Wizard --- */
+    wizardOpen: false,
+    wizardStep: 1,
+    wizardTotal: 4,
+    wizardSaving: false,
+    wizardMemoryContent: '',
+    wizardUser: { name: '', location: '', prefs: '' },
+    wizardKeys: { openrouter: '', anthropic: '', openai: '' },
+    wizardConnectors: { telegram: '', whatsapp: '' },
+
+    /* ================================================================
+       COMPUTED
+       ================================================================ */
+    get sidebarProjects() {
+      return this.projects.map(p => ({
+        id: p.project_id,
+        name: p.name || p.project_id,
+      }));
+    },
+
+    get activeProjectName() {
+      if (!this.activeProjectId) return 'Default';
+      const p = this.projects.find(p => p.project_id === this.activeProjectId);
+      return p ? (p.name || p.project_id) : this.activeProjectId;
+    },
+
+    chatsForProject(projectId) {
+      return this.chats.filter(c => (c.projectId || null) === projectId);
+    },
 
     /* ================================================================
        INIT
        ================================================================ */
     async init() {
-      // Restore chats from localStorage
       const saved = loadChats();
       if (saved.length > 0) {
         this.chats = saved;
@@ -155,6 +190,11 @@ document.addEventListener('alpine:init', () => {
 
       // Auto-save chats whenever they change
       this.$watch('chats', (v) => saveChats(v), { deep: true });
+
+      // Show wizard on first launch
+      if (!localStorage.getItem(LS_WIZARD)) {
+        await this.startWizard();
+      }
     },
 
     /* ================================================================
@@ -170,7 +210,6 @@ document.addEventListener('alpine:init', () => {
         try { this.ws.onclose = null; this.ws.close(); } catch (_) {}
         this.ws = null;
       }
-
       try {
         this.ws = new WebSocket(this.wsUrl());
       } catch (e) {
@@ -178,51 +217,37 @@ document.addEventListener('alpine:init', () => {
         this.scheduleReconnect();
         return;
       }
-
       this.ws.onopen = () => {
         this.wsStatus = 'connected';
         this.wsRetries = 0;
         clearTimeout(this.wsRetryTimer);
         this.wsRetryTimer = null;
-        // If we were streaming when WS dropped, clean up
         if (this.isStreaming) {
           this.isStreaming = false;
           this.currentActivity = '';
-          const chat = this.activeChat;
-          if (chat) {
-            const last = chat.messages[chat.messages.length - 1];
-            if (last?.streaming) {
-              last.streaming = false;
-              last.raw += '\n[SYS] Connection restored — please resend.';
-              last.parts = parseAgentOutput(last.raw);
-            }
+          const last = this.activeChat?.messages?.at(-1);
+          if (last?.streaming) {
+            last.streaming = false;
+            last.raw += '\n[SYS] Connection restored — please resend.';
+            last.parts = parseAgentOutput(last.raw);
           }
         }
       };
-
-      this.ws.onclose = (ev) => {
+      this.ws.onclose = () => {
         this.wsStatus = 'disconnected';
-        // If mid-stream, mark it failed
         if (this.isStreaming) {
           this.isStreaming = false;
           this.currentActivity = '';
-          const chat = this.activeChat;
-          if (chat) {
-            const last = chat.messages[chat.messages.length - 1];
-            if (last?.streaming) {
-              last.streaming = false;
-              last.raw += '\n[ERR] Connection lost.';
-              last.parts = parseAgentOutput(last.raw);
-            }
+          const last = this.activeChat?.messages?.at(-1);
+          if (last?.streaming) {
+            last.streaming = false;
+            last.raw += '\n[ERR] Connection lost.';
+            last.parts = parseAgentOutput(last.raw);
           }
         }
         this.scheduleReconnect();
       };
-
-      this.ws.onerror = () => {
-        this.wsStatus = 'degraded';
-      };
-
+      this.ws.onerror = () => { this.wsStatus = 'degraded'; };
       this.ws.onmessage = (ev) => {
         let msg;
         try { msg = JSON.parse(ev.data); } catch { return; }
@@ -243,16 +268,13 @@ document.addEventListener('alpine:init', () => {
     handleWsMessage(msg) {
       const chat = this.activeChat;
       if (!chat) return;
-
       if (msg.type === 'start') return;
 
       if (msg.type === 'chunk') {
-        const content = msg.content || '';
-        const last = chat.messages[chat.messages.length - 1];
+        const last = chat.messages.at(-1);
         if (last?.role === 'agent') {
-          last.raw += content;
+          last.raw += msg.content || '';
           last.parts = parseAgentOutput(last.raw);
-          // Update activity indicator from latest badge
           const lastBadge = [...last.parts].reverse().find(p => p.type === 'badge');
           if (lastBadge) this.currentActivity = BADGE_LABELS[lastBadge.cls] || lastBadge.badge;
         }
@@ -263,15 +285,12 @@ document.addEventListener('alpine:init', () => {
       if (msg.type === 'done') {
         this.isStreaming = false;
         this.currentActivity = '';
-        const last = chat.messages[chat.messages.length - 1];
+        const last = chat.messages.at(-1);
         if (last?.role === 'agent') {
           last.streaming = false;
           last.parts = parseAgentOutput(last.raw);
         }
-        if (chat.title === 'New chat') {
-          const firstUser = chat.messages.find(m => m.role === 'user');
-          if (firstUser) chat.title = firstUser.text.slice(0, 40) + (firstUser.text.length > 40 ? '…' : '');
-        }
+        this._autoTitle(chat);
         this.scrollToBottom();
         return;
       }
@@ -279,7 +298,7 @@ document.addEventListener('alpine:init', () => {
       if (msg.error) {
         this.isStreaming = false;
         this.currentActivity = '';
-        const last = chat.messages[chat.messages.length - 1];
+        const last = chat.messages.at(-1);
         if (last?.role === 'agent') {
           last.raw += `\n[ERR] ${msg.error}`;
           last.parts = parseAgentOutput(last.raw);
@@ -289,15 +308,17 @@ document.addEventListener('alpine:init', () => {
     },
 
     /* ================================================================
-       SEND MESSAGE
+       SEND
        ================================================================ */
     async send() {
       const text = this.inputText.trim();
       if (!text || this.isStreaming) return;
 
+      // Ensure we're in chat view
+      this.activeView = null;
+
       if (!this.activeChat) this.newChat();
       const chat = this.activeChat;
-      const sessionId = chat.sessionId;
 
       chat.messages.push({ id: uid(), role: 'user', text, ts: tsNow() });
       this.inputText = '';
@@ -305,13 +326,8 @@ document.addEventListener('alpine:init', () => {
       this.scrollToBottom();
 
       const agentMsg = {
-        id: uid(),
-        role: 'agent',
-        raw: '',
-        parts: [],
-        streaming: true,
-        ts: tsNow(),
-        stepOpen: true,
+        id: uid(), role: 'agent', raw: '', parts: [],
+        streaming: true, ts: tsNow(), stepOpen: true,
       };
       chat.messages.push(agentMsg);
       this.isStreaming = true;
@@ -322,48 +338,29 @@ document.addEventListener('alpine:init', () => {
         this.ws.send(JSON.stringify({
           message: text,
           project_id: this.activeProjectId || null,
-          session_id: sessionId,
+          session_id: chat.sessionId,
         }));
       } else {
-        await this.sendViaSSE(text, chat, agentMsg, sessionId);
+        await this.sendViaSSE(text, chat, agentMsg);
       }
     },
 
-    /* ================================================================
-       STOP / CANCEL
-       ================================================================ */
     stop() {
       if (!this.isStreaming) return;
-
-      // Abort SSE if active
-      if (this.sseAbort) {
-        this.sseAbort.abort();
-        this.sseAbort = null;
-      }
-
-      // For WS, just close and reconnect — server will stop when client disconnects
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        // Don't close the WS permanently — send a cancel signal if supported,
-        // otherwise just mark locally as stopped
-      }
-
+      if (this.sseAbort) { this.sseAbort.abort(); this.sseAbort = null; }
       this.isStreaming = false;
       this.currentActivity = '';
-      const chat = this.activeChat;
-      if (chat) {
-        const last = chat.messages[chat.messages.length - 1];
-        if (last?.streaming) {
-          last.streaming = false;
-          last.raw += '\n[SYS] Stopped by user.';
-          last.parts = parseAgentOutput(last.raw);
-        }
+      const last = this.activeChat?.messages?.at(-1);
+      if (last?.streaming) {
+        last.streaming = false;
+        last.raw += '\n[SYS] Stopped by user.';
+        last.parts = parseAgentOutput(last.raw);
       }
     },
 
-    async sendViaSSE(text, chat, agentMsg, sessionId) {
+    async sendViaSSE(text, chat, agentMsg) {
       const controller = new AbortController();
       this.sseAbort = controller;
-
       try {
         const resp = await fetch('/api/chat', {
           method: 'POST',
@@ -371,7 +368,7 @@ document.addEventListener('alpine:init', () => {
           body: JSON.stringify({
             message: text,
             project_id: this.activeProjectId || null,
-            session_id: sessionId,
+            session_id: chat.sessionId,
             channel: 'api',
           }),
           signal: controller.signal,
@@ -403,10 +400,7 @@ document.addEventListener('alpine:init', () => {
                 agentMsg.streaming = false;
                 this.isStreaming = false;
                 this.currentActivity = '';
-                if (chat.title === 'New chat') {
-                  const firstUser = chat.messages.find(m => m.role === 'user');
-                  if (firstUser) chat.title = firstUser.text.slice(0, 40) + (firstUser.text.length > 40 ? '…' : '');
-                }
+                this._autoTitle(chat);
                 this.scrollToBottom();
               }
             } catch (_) {}
@@ -425,6 +419,13 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
+    _autoTitle(chat) {
+      if (chat.title === 'New chat') {
+        const firstUser = chat.messages.find(m => m.role === 'user');
+        if (firstUser) chat.title = firstUser.text.slice(0, 40) + (firstUser.text.length > 40 ? '…' : '');
+      }
+    },
+
     /* ================================================================
        CHAT MANAGEMENT
        ================================================================ */
@@ -439,22 +440,26 @@ document.addEventListener('alpine:init', () => {
       };
       this.chats.unshift(chat);
       this.activeChatId = chat.id;
+      this.activeView = null;
+    },
+
+    newChatInProject(projectId) {
+      this.activeProjectId = projectId;
+      this.newChat();
     },
 
     selectChat(id) {
-      if (this.isStreaming) return;  // Don't switch mid-stream
+      if (this.isStreaming) return;
       this.activeChatId = id;
+      this.activeView = null;
       this.$nextTick(() => this.scrollToBottom());
     },
 
     deleteChat(id) {
       this.chats = this.chats.filter(c => c.id !== id);
       if (this.activeChatId === id) {
-        if (this.chats.length > 0) {
-          this.activeChatId = this.chats[0].id;
-        } else {
-          this.newChat();
-        }
+        if (this.chats.length > 0) this.activeChatId = this.chats[0].id;
+        else this.newChat();
       }
     },
 
@@ -471,9 +476,112 @@ document.addEventListener('alpine:init', () => {
       } catch (_) {}
     },
 
-    selectProject(id) {
-      this.activeProjectId = id;
-      this.newChat();
+    async createProject() {
+      const name = prompt('Project name:');
+      if (!name?.trim()) return;
+      try {
+        const resp = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name.trim() }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const proj = data.project || data;
+          this.projects.unshift(proj);
+          this.expandedProjects = new Set([...this.expandedProjects, proj.project_id]);
+          this.activeProjectId = proj.project_id;
+          this.newChat();
+        }
+      } catch (_) {}
+    },
+
+    async deleteProject(projectId) {
+      if (!confirm('Delete this project?')) return;
+      try {
+        const resp = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' });
+        if (resp.ok) {
+          this.projects = this.projects.filter(p => p.project_id !== projectId);
+          if (this.activeProjectId === projectId) {
+            this.activeProjectId = null;
+            this.newChat();
+          }
+        }
+      } catch (_) {}
+    },
+
+    toggleProject(projectId) {
+      const s = new Set(this.expandedProjects);
+      if (s.has(projectId)) {
+        s.delete(projectId);
+      } else {
+        s.add(projectId);
+        this.activeProjectId = projectId;
+      }
+      this.expandedProjects = s;
+    },
+
+    startEditProject(id, name) {
+      this.editingProjectId = id;
+      this.editingProjectName = name;
+      this.$nextTick(() => {
+        const inp = document.querySelector('.proj-name-input');
+        if (inp) { inp.focus(); inp.select(); }
+      });
+    },
+
+    async saveProjectName(projectId) {
+      const name = this.editingProjectName.trim();
+      this.editingProjectId = null;
+      if (!name) return;
+      try {
+        const resp = await fetch(`/api/projects/${projectId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const updated = data.project || data;
+          const idx = this.projects.findIndex(p => p.project_id === projectId);
+          if (idx >= 0) this.projects[idx] = { ...this.projects[idx], ...updated };
+        }
+      } catch (_) {}
+    },
+
+    /* ================================================================
+       PROJECT MEMORY VIEW
+       ================================================================ */
+    async showProjectMemory(projectId) {
+      this.activeView = `project-memory-${projectId}`;
+      this.activeProjectId = projectId;
+      // Load the project's memory file
+      const proj = this.projects.find(p => p.project_id === projectId);
+      const name = proj?.project_id || projectId;
+      try {
+        const resp = await fetch(`/api/memory/file?path=projects/${name}.md`);
+        if (resp.ok) {
+          const data = await resp.json();
+          this.projectMemoryContent = data.content || '';
+        } else {
+          this.projectMemoryContent = `# Project: ${proj?.name || name}\n\n## Notes\n\n`;
+        }
+      } catch (_) {
+        this.projectMemoryContent = `# Project: ${proj?.name || name}\n\n## Notes\n\n`;
+      }
+    },
+
+    async saveProjectMemoryFile() {
+      const projectId = this.activeView?.replace('project-memory-', '');
+      if (!projectId) return;
+      try {
+        const resp = await fetch('/api/memory/file', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: `projects/${projectId}.md`, content: this.projectMemoryContent }),
+        });
+        if (resp.ok) alert('Project memory saved!');
+      } catch (_) {}
     },
 
     /* ================================================================
@@ -481,7 +589,10 @@ document.addEventListener('alpine:init', () => {
        ================================================================ */
     async toggleMemory() {
       this.memoryOpen = !this.memoryOpen;
-      if (this.memoryOpen) await this.loadRecentMemory();
+      if (this.memoryOpen) {
+        await this.loadRecentMemory();
+        await this.loadMemoryStats();
+      }
     },
 
     async loadMemoryStats() {
@@ -493,7 +604,8 @@ document.addEventListener('alpine:init', () => {
 
     async loadRecentMemory() {
       try {
-        const resp = await fetch('/api/memory/recent?limit=30&project_id=' + (this.activeProjectId || ''));
+        const url = '/api/memory/recent?limit=30' + (this.activeProjectId ? `&project_id=${this.activeProjectId}` : '');
+        const resp = await fetch(url);
         if (resp.ok) {
           const data = await resp.json();
           this.memoryChunks = Array.isArray(data) ? data : (data.chunks || []);
@@ -517,12 +629,148 @@ document.addEventListener('alpine:init', () => {
       } catch (_) {}
     },
 
+    async deleteChunk(chunkId) {
+      if (!chunkId) return;
+      if (!confirm('Delete this memory chunk?')) return;
+      try {
+        const resp = await fetch(`/api/memory/chunk/${chunkId}`, { method: 'DELETE' });
+        if (resp.ok) {
+          this.memoryChunks = this.memoryChunks.filter(c => (c.chunk_id || c.id) !== chunkId);
+          await this.loadMemoryStats();
+        }
+      } catch (_) {}
+    },
+
+    async loadMemoryFiles() {
+      try {
+        const resp = await fetch('/api/memory/files');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.memoryFiles = data.files || [];
+        }
+      } catch (_) {}
+    },
+
+    async openMemoryFile(path) {
+      try {
+        const resp = await fetch(`/api/memory/file?path=${encodeURIComponent(path)}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          this.editingFile = path;
+          this.editingFileContent = data.content || '';
+        }
+      } catch (_) {}
+    },
+
+    async saveMemoryFile() {
+      if (!this.editingFile) return;
+      try {
+        const resp = await fetch('/api/memory/file', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: this.editingFile, content: this.editingFileContent }),
+        });
+        if (resp.ok) {
+          this.editingFile = null;
+          await this.loadMemoryFiles();
+        }
+      } catch (_) {}
+    },
+
     /* ================================================================
        SETTINGS
        ================================================================ */
     async openSettings() {
       this.settingsOpen = true;
-      await this.loadUsage();
+      await this.loadSettingsData();
+    },
+
+    async loadSettingsData() {
+      try {
+        const resp = await fetch('/api/settings');
+        if (resp.ok) this.settingsData = await resp.json();
+      } catch (_) {}
+    },
+
+    async saveApiKey(name, value) {
+      if (!value?.trim()) return;
+      try {
+        const resp = await fetch('/api/settings/api-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, value: value.trim() }),
+        });
+        if (resp.ok) await this.loadSettingsData();
+      } catch (_) {}
+    },
+
+    async loadModels() {
+      try {
+        const resp = await fetch('/api/llm/providers');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.availableModels = data.models || [];
+        }
+      } catch (_) {}
+    },
+
+    async setDefaultModel(key) {
+      try {
+        const resp = await fetch('/api/settings/model', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_key: key }),
+        });
+        if (resp.ok) {
+          this.settingsData = { ...this.settingsData, default_model: key };
+        }
+      } catch (_) {}
+    },
+
+    async loadConnectors() {
+      await this.loadSettingsData();
+      this.connectorForm.whatsapp = this.settingsData.connectors?.whatsapp_sidecar_url || '';
+    },
+
+    async saveConnectors() {
+      try {
+        const body = {};
+        if (this.connectorForm.telegram) body.telegram_bot_token = this.connectorForm.telegram;
+        if (this.connectorForm.whatsapp) body.whatsapp_sidecar_url = this.connectorForm.whatsapp;
+        const resp = await fetch('/api/settings/connectors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (resp.ok) await this.loadSettingsData();
+      } catch (_) {}
+    },
+
+    async openSettingsMemoryFile(path) {
+      try {
+        const resp = await fetch(`/api/memory/file?path=${encodeURIComponent(path)}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          this.settingsEditingFile = path;
+          this.settingsEditingContent = data.content || '';
+        }
+      } catch (_) {}
+    },
+
+    async saveSettingsMemoryFile() {
+      if (!this.settingsEditingFile) return;
+      try {
+        const resp = await fetch('/api/memory/file', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: this.settingsEditingFile, content: this.settingsEditingContent }),
+        });
+        if (resp.ok) {
+          alert('Saved!');
+          this.settingsEditingFile = null;
+          await this.loadMemoryFiles();
+        }
+      } catch (_) {}
     },
 
     async loadUsage() {
@@ -530,6 +778,113 @@ document.addEventListener('alpine:init', () => {
         const resp = await fetch('/api/llm/usage');
         if (resp.ok) this.usageSummary = await resp.json();
       } catch (_) {}
+    },
+
+    /* ================================================================
+       WIZARD
+       ================================================================ */
+    async startWizard() {
+      // Load current MEMORY.md content
+      try {
+        const resp = await fetch('/api/memory/file?path=MEMORY.md');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.wizardMemoryContent = data.content || '';
+        }
+      } catch (_) {}
+      this.wizardStep = 1;
+      this.wizardOpen = true;
+    },
+
+    async wizardNext() {
+      this.wizardSaving = true;
+      try {
+        if (this.wizardStep === 1) {
+          // Save MEMORY.md
+          await fetch('/api/memory/file', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: 'MEMORY.md', content: this.wizardMemoryContent }),
+          });
+        } else if (this.wizardStep === 2) {
+          // Save user identity to MEMORY.md
+          if (this.wizardUser.name) {
+            let profile = `\n## [identity] User Profile\n\n`;
+            if (this.wizardUser.name) profile += `- **Name**: ${this.wizardUser.name}\n`;
+            if (this.wizardUser.location) profile += `- **Location**: ${this.wizardUser.location}\n`;
+            if (this.wizardUser.prefs) profile += `- **Preferences**: ${this.wizardUser.prefs}\n`;
+            const existing = this.wizardMemoryContent || '';
+            await fetch('/api/memory/file', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: 'MEMORY.md', content: existing + profile }),
+            });
+            // Also record as a preference chunk
+            await fetch('/api/memory/record', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: `User profile: ${JSON.stringify(this.wizardUser)}`,
+                chunk_type: 'preference',
+                source: 'wizard',
+              }),
+            });
+          }
+        } else if (this.wizardStep === 3) {
+          // Save API keys
+          const keyMap = {
+            openrouter: 'OPENROUTER_API_KEY',
+            anthropic: 'ANTHROPIC_API_KEY',
+            openai: 'OPENAI_API_KEY',
+          };
+          for (const [k, envName] of Object.entries(keyMap)) {
+            if (this.wizardKeys[k]?.trim()) {
+              await fetch('/api/settings/api-key', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: envName, value: this.wizardKeys[k].trim() }),
+              });
+            }
+          }
+        } else if (this.wizardStep === 4) {
+          // Save connectors
+          const body = {};
+          if (this.wizardConnectors.telegram) body.telegram_bot_token = this.wizardConnectors.telegram;
+          if (this.wizardConnectors.whatsapp) body.whatsapp_sidecar_url = this.wizardConnectors.whatsapp;
+          if (Object.keys(body).length > 0) {
+            await fetch('/api/settings/connectors', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+          }
+        }
+      } catch (_) {}
+
+      this.wizardSaving = false;
+
+      if (this.wizardStep < this.wizardTotal) {
+        this.wizardStep++;
+      } else {
+        this.wizardFinish();
+      }
+    },
+
+    wizardBack() {
+      if (this.wizardStep > 1) this.wizardStep--;
+    },
+
+    wizardSkip() {
+      if (this.wizardStep < this.wizardTotal) {
+        this.wizardStep++;
+      } else {
+        this.wizardFinish();
+      }
+    },
+
+    wizardFinish() {
+      localStorage.setItem(LS_WIZARD, '1');
+      this.wizardOpen = false;
     },
 
     /* ================================================================
@@ -562,45 +917,32 @@ document.addEventListener('alpine:init', () => {
     },
 
     badgeCls(cls) { return `badge ${cls}`; },
-
-    copyCode(el) {
-      const code = el.closest('pre')?.querySelector('code')?.textContent || '';
-      navigator.clipboard.writeText(code).catch(() => {});
-    },
-
-    hasBadges(msg) {
-      return msg.parts && msg.parts.some(p => p.type === 'badge');
-    },
-
-    finalMdParts(msg) {
-      return (msg.parts || []).filter(p => p.type === 'markdown');
-    },
-
-    badgeParts(msg) {
-      return (msg.parts || []).filter(p => p.type === 'badge');
-    },
+    hasBadges(msg) { return msg.parts && msg.parts.some(p => p.type === 'badge'); },
+    finalMdParts(msg) { return (msg.parts || []).filter(p => p.type === 'markdown'); },
+    badgeParts(msg) { return (msg.parts || []).filter(p => p.type === 'badge'); },
 
     get statusLabel() {
       if (this.isStreaming) return this.currentActivity || 'Thinking…';
       return { connected: 'Connected', degraded: 'Reconnecting…', disconnected: 'Offline' }[this.wsStatus] || 'Offline';
     },
-
     get statusCls() {
       if (this.isStreaming) return 'streaming';
       return this.wsStatus;
     },
 
-    get activeProjectName() {
-      if (!this.activeProjectId) return 'Default';
-      const p = this.projects.find(p => p.project_id === this.activeProjectId);
-      return p ? (p.name || p.project_id) : this.activeProjectId;
-    },
-
     formatScore(s) { return parseFloat(s || 0).toFixed(1); },
-    chunkLabel(chunk) { return chunk.text_excerpt || chunk.text || ''; },
+    chunkLabel(chunk) {
+      const text = chunk.text_excerpt || chunk.text || '';
+      return text.length > 120 ? text.slice(0, 120) + '…' : text;
+    },
     usagePercent(used, max) {
       if (!max || !used) return 0;
       return Math.min(100, Math.round((used / max) * 100));
+    },
+    formatBytes(b) {
+      if (!b) return '0 B';
+      if (b < 1024) return b + ' B';
+      return (b / 1024).toFixed(1) + ' KB';
     },
   }));
 });

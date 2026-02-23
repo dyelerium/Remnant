@@ -103,3 +103,8 @@ class ProviderRegistry:
         if use_case:
             specs = [s for s in specs if use_case in s.use_cases]
         return specs
+
+    def set_default(self, use_case: str, model_key: str) -> None:
+        """Override the default model for a use-case at runtime."""
+        self._defaults[use_case] = model_key
+        logger.info("Default model for %s set to %s", use_case, model_key)
