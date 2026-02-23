@@ -128,6 +128,11 @@ class LLMClient:
             raise ValueError(f"Unknown provider: {spec.provider}")
 
     async def _dispatch_chat_stream(self, spec, messages, max_tokens, temperature):
+        # If model is configured to not stream, fall back to a single non-streaming call
+        if not spec.stream:
+            result = self._dispatch_chat(spec, messages, max_tokens, temperature)
+            yield result.get("content", "")
+            return
         if spec.provider == "anthropic":
             async for chunk in self._stream_anthropic(spec, messages, max_tokens, temperature):
                 yield chunk
@@ -158,6 +163,8 @@ class LLMClient:
             else:
                 filtered.append(m)
 
+        if spec.top_p != 1.0:
+            kwargs.setdefault("top_p", spec.top_p)
         response = client.messages.create(
             model=spec.model,
             max_tokens=max_tok,
@@ -187,12 +194,16 @@ class LLMClient:
             else:
                 filtered.append(m)
 
+        extra: dict = {}
+        if spec.top_p != 1.0:
+            extra["top_p"] = spec.top_p
         async with client.messages.stream(
             model=spec.model,
             max_tokens=max_tok,
             temperature=temperature,
             system=system or anthropic.NOT_GIVEN,
             messages=filtered,
+            **extra,
         ) as stream:
             async for text in stream.text_stream:
                 yield text
@@ -216,6 +227,7 @@ class LLMClient:
             messages=messages,
             max_tokens=max_tok,
             temperature=temperature,
+            top_p=spec.top_p,
             **kwargs,
         )
         return {
@@ -242,6 +254,7 @@ class LLMClient:
             messages=messages,
             max_tokens=max_tokens or 4096,
             temperature=temperature,
+            top_p=spec.top_p,
             stream=True,
         )
         in_think_block = False
@@ -271,7 +284,7 @@ class LLMClient:
             "model": spec.model,
             "messages": messages,
             "stream": False,
-            "options": {"temperature": temperature, "num_predict": max_tokens or 4096},
+            "options": {"temperature": temperature, "top_p": spec.top_p, "num_predict": max_tokens or 4096},
         }
         r = httpx.post(f"{base}/api/chat", json=payload, timeout=120.0)
         r.raise_for_status()
@@ -293,7 +306,7 @@ class LLMClient:
             "model": spec.model,
             "messages": messages,
             "stream": True,
-            "options": {"temperature": temperature, "num_predict": max_tokens or 4096},
+            "options": {"temperature": temperature, "top_p": spec.top_p, "num_predict": max_tokens or 4096},
         }
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream("POST", f"{base}/api/chat", json=payload) as response:

@@ -31,6 +31,8 @@ async def list_providers(request: Request) -> dict:
             "max_completion_tokens": s.max_completion_tokens,
             "history_fraction": s.history_fraction,
             "temperature": s.temperature,
+            "top_p": s.top_p,
+            "stream": s.stream,
         }
         for s in registry.list_models()
     ]
@@ -185,6 +187,8 @@ class ModelConfigRequest(BaseModel):
     max_completion_tokens: int = 4096
     history_fraction: float = 0.7
     temperature: float = 0.7
+    top_p: float = 1.0
+    stream: bool = True
     use_cases: list[str] = []
     set_as_default_for_chat: bool = False
 
@@ -211,6 +215,8 @@ async def save_model_config(body: ModelConfigRequest, request: Request) -> dict:
             "max_completion_tokens": body.max_completion_tokens,
             "history_fraction": body.history_fraction,
             "temperature": body.temperature,
+            "top_p": body.top_p,
+            "stream": body.stream,
             "use_cases": body.use_cases or ["chat"],
         }
 

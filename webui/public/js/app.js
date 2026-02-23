@@ -892,6 +892,8 @@ document.addEventListener('alpine:init', () => {
         max_completion_tokens: overrides.max_completion_tokens ?? m.max_completion_tokens ?? 4096,
         history_fraction: overrides.history_fraction ?? m.history_fraction ?? 0.7,
         temperature: overrides.temperature ?? m.temperature ?? 0.7,
+        top_p: overrides.top_p ?? m.top_p ?? 1.0,
+        stream: overrides.stream ?? m.stream ?? true,
         use_cases: m.use_cases || ['chat'],
         set_as_default_for_chat: overrides.set_as_default ?? false,
       };

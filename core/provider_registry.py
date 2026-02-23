@@ -38,6 +38,8 @@ class ModelSpec:
     max_completion_tokens: int = 4096
     history_fraction: float = 0.7
     temperature: float = 0.7
+    top_p: float = 1.0
+    stream: bool = True
     extra_pricing: dict = field(default_factory=dict)
 
 
@@ -74,6 +76,8 @@ class ProviderRegistry:
                     max_completion_tokens=int(model_cfg.get("max_completion_tokens", 4096)),
                     history_fraction=float(model_cfg.get("history_fraction", 0.7)),
                     temperature=float(model_cfg.get("temperature", 0.7)),
+                    top_p=float(model_cfg.get("top_p", 1.0)),
+                    stream=bool(model_cfg.get("stream", True)),
                     extra_pricing=model_cfg.get("extra_pricing", {}),
                 )
 

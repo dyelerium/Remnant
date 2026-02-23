@@ -591,8 +591,8 @@
                   <th style="text-align:center;padding:6px 4px;font-weight:500"></th>
                 </tr>
               </thead>
-              <tbody>
-                <template x-for="m in modelsForTab" :key="m.key">
+              <template x-for="m in modelsForTab" :key="m.key">
+                <tbody>
                   <tr style="border-bottom:1px solid var(--border)">
                     <td style="padding:7px 4px">
                       <div style="font-weight:500" x-text="m.model"></div>
@@ -616,8 +616,8 @@
                               @click="toggleModelConfig(m.key)">⚙</button>
                     </td>
                   </tr>
-                  <!-- Inline config panel -->
-                  <tr x-show="modelConfigPanel === m.key">
+                  <!-- Inline config panel — in same tbody so Alpine x-show works reliably -->
+                  <tr x-show="modelConfigPanel === m.key" style="display:none">
                     <td colspan="7" style="padding:0">
                       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:14px;margin:4px 0 8px">
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
@@ -634,6 +634,12 @@
                                    @input="setModelConfigField(m.key, 'temperature', +$event.target.value)" />
                           </div>
                           <div class="form-group" style="margin:0">
+                            <label class="form-label" style="font-size:11px">Top-P (nucleus sampling)</label>
+                            <input class="form-input" type="number" min="0" max="1" step="0.05" style="font-size:12px"
+                                   :value="modelConfigForm[m.key]?.top_p ?? m.top_p ?? 1.0"
+                                   @input="setModelConfigField(m.key, 'top_p', +$event.target.value)" />
+                          </div>
+                          <div class="form-group" style="margin:0">
                             <label class="form-label" style="font-size:11px">
                               Chat history space: <span x-text="Math.round((modelConfigForm[m.key]?.history_fraction ?? m.history_fraction ?? 0.7) * 100) + '%'"></span>
                             </label>
@@ -648,6 +654,15 @@
                                      :checked="modelConfigForm[m.key]?.has_vision ?? m.has_vision ?? false"
                                      @change="setModelConfigField(m.key, 'has_vision', $event.target.checked)" />
                               <span style="font-size:12px">Supports image input</span>
+                            </label>
+                          </div>
+                          <div class="form-group" style="margin:0">
+                            <label class="form-label" style="font-size:11px">Streaming</label>
+                            <label style="display:flex;align-items:center;gap:6px;margin-top:6px">
+                              <input type="checkbox"
+                                     :checked="modelConfigForm[m.key]?.stream ?? m.stream ?? true"
+                                     @change="setModelConfigField(m.key, 'stream', $event.target.checked)" />
+                              <span style="font-size:12px">Stream responses token-by-token</span>
                             </label>
                           </div>
                           <div class="form-group" style="margin:0">
@@ -678,8 +693,8 @@
                       </div>
                     </td>
                   </tr>
-                </template>
-              </tbody>
+                </tbody>
+              </template>
             </table>
             <div class="empty-state" x-show="modelsForTab.length === 0">
               No models configured for this provider.
