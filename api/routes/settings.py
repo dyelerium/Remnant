@@ -110,7 +110,7 @@ class ModelRequest(BaseModel):
 
 @router.post("/settings/model")
 async def set_default_model(body: ModelRequest, request: Request) -> dict:
-    """Set the default chat model in the provider registry."""
+    """Set the default chat model in the provider registry and persist to YAML."""
     registry = request.app.state.registry
     try:
         # Validate that the model key exists
@@ -122,6 +122,18 @@ async def set_default_model(body: ModelRequest, request: Request) -> dict:
         if body.model_key not in keys:
             raise HTTPException(status_code=404, detail=f"Model {body.model_key!r} not found in registry")
         registry.set_default("chat", body.model_key)
+
+        # Persist to YAML so it survives registry reloads
+        config_path = Path("/app/config/llm_providers.yaml")
+        if not config_path.exists():
+            config_path = Path("config/llm_providers.yaml")
+        if config_path.exists():
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f) or {}
+            config.setdefault("defaults", {})["chat"] = body.model_key
+            with open(config_path, "w", encoding="utf-8") as f:
+                yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+
         return {"status": "updated", "model": body.model_key}
     except HTTPException:
         raise

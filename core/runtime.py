@@ -83,7 +83,7 @@ class AgentRuntime:
 
         # Inject current model identity so the agent knows what LLM it is using
         try:
-            _spec = self.llm._registry.resolve("chat")
+            _spec = self.llm.registry.resolve("chat")
             system_prompt += (
                 f"\n[Current model: {_spec.provider}/{_spec.model}"
                 f" | context: {_spec.context_window} tokens]"

@@ -220,10 +220,14 @@ async def save_model_config(body: ModelConfigRequest, request: Request) -> dict:
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
 
-        # Reload registry
+        # Reload registry — merge YAML defaults with in-memory overrides so that
+        # any model chosen via POST /api/settings/model is not silently reverted.
+        merged_defaults = {**config.get("defaults", {}), **registry._defaults}
+        if body.set_as_default_for_chat:
+            merged_defaults["chat"] = f"{body.provider}/{body.model}"
         registry.reload_from_yaml({
             "providers": config.get("providers", {}),
-            "defaults": config.get("defaults", {}),
+            "defaults": merged_defaults,
         })
 
         return {"status": "saved", "key": f"{body.provider}/{body.model}"}

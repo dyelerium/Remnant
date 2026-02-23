@@ -1,5 +1,5 @@
 defaults:
-  chat: openrouter/stepfun/step-3.5-flash:free
+  chat: ollama/qwen3:4b
   compaction: openrouter/stepfun/step-3.5-flash:free
   curator: openrouter/stepfun/step-3.5-flash:free
   embedding: sentence-transformers/all-MiniLM-L6-v2
@@ -52,7 +52,7 @@ providers:
     name: Anthropic Claude
   ollama:
     api_key_env: null
-    base_url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    base_url: null
     models:
       deepcoder:1.5b:
         context_window: 128000

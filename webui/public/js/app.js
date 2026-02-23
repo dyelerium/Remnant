@@ -768,6 +768,7 @@ document.addEventListener('alpine:init', () => {
     async openSettings() {
       this.settingsOpen = true;
       await this.loadSettingsData();
+      await this.loadModels();
     },
 
     async loadSettingsData() {

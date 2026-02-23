@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any, AsyncIterator, Optional
 
@@ -265,7 +266,7 @@ class LLMClient:
 
     def _chat_ollama(self, spec, messages, max_tokens, temperature) -> dict:
         import httpx
-        base = spec.base_url or "http://localhost:11434"
+        base = os.environ.get("OLLAMA_BASE_URL") or spec.base_url or "http://localhost:11434"
         payload = {
             "model": spec.model,
             "messages": messages,
@@ -287,7 +288,7 @@ class LLMClient:
     async def _stream_ollama(self, spec, messages, max_tokens, temperature):
         import httpx
         import json
-        base = spec.base_url or "http://localhost:11434"
+        base = os.environ.get("OLLAMA_BASE_URL") or spec.base_url or "http://localhost:11434"
         payload = {
             "model": spec.model,
             "messages": messages,
