@@ -172,7 +172,7 @@ document.addEventListener('alpine:init', () => {
     wizardSaving: false,
     wizardMemoryContent: '',
     wizardUser: { name: '', location: '', prefs: '' },
-    wizardKeys: { openrouter: '', anthropic: '', openai: '' },
+    wizardKeys: { openrouter: '', anthropic: '', openai: '', nvidia: '' },
     wizardConnectors: { telegram: '', whatsapp: '' },
 
     /* ================================================================
@@ -1285,6 +1285,7 @@ document.addEventListener('alpine:init', () => {
             openrouter: 'OPENROUTER_API_KEY',
             anthropic: 'ANTHROPIC_API_KEY',
             openai: 'OPENAI_API_KEY',
+            nvidia: 'NVIDIA_API_KEY',
           };
           for (const [k, envName] of Object.entries(keyMap)) {
             if (this.wizardKeys[k]?.trim()) {

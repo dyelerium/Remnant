@@ -139,6 +139,45 @@ async def fetch_remote_models(provider: str, request: Request) -> dict:
         ]
         return {"provider": "anthropic", "models": static, "count": len(static)}
 
+    elif provider == "nvidia":
+        api_key = os.environ.get("NVIDIA_API_KEY", "")
+        if not api_key:
+            raise HTTPException(status_code=400, detail="NVIDIA_API_KEY not set")
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    "https://integrate.api.nvidia.com/v1/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            models = []
+            for m in data.get("data", []):
+                mid = m.get("id", "")
+                models.append({
+                    "id": mid,
+                    "name": mid,
+                    "context_length": m.get("context_length", 131072),
+                    "cost_per_1k_input": 0.0,
+                    "cost_per_1k_output": 0.0,
+                    "has_vision": False,
+                    "max_completion_tokens": 16384,
+                })
+            return {"provider": "nvidia", "models": models, "count": len(models)}
+        except httpx.HTTPError:
+            # Fall back to a curated static list if the models endpoint isn't available
+            static = [
+                {"id": "moonshotai/kimi-k2.5", "name": "Kimi K2.5 (Moonshot)", "context_length": 131072,
+                 "cost_per_1k_input": 0.0, "cost_per_1k_output": 0.0, "has_vision": False, "max_completion_tokens": 16384},
+                {"id": "meta/llama-3.3-70b-instruct", "name": "Llama 3.3 70B Instruct", "context_length": 131072,
+                 "cost_per_1k_input": 0.0, "cost_per_1k_output": 0.0, "has_vision": False, "max_completion_tokens": 8192},
+                {"id": "nvidia/llama-3.1-nemotron-ultra-253b-v1", "name": "Nemotron Ultra 253B", "context_length": 131072,
+                 "cost_per_1k_input": 0.0, "cost_per_1k_output": 0.0, "has_vision": False, "max_completion_tokens": 16384},
+                {"id": "deepseek-ai/deepseek-r1", "name": "DeepSeek R1", "context_length": 131072,
+                 "cost_per_1k_input": 0.0, "cost_per_1k_output": 0.0, "has_vision": False, "max_completion_tokens": 16384},
+            ]
+            return {"provider": "nvidia", "models": static, "count": len(static)}
+
     elif provider == "openai":
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if not api_key:

@@ -120,7 +120,7 @@ class LLMClient:
     ) -> dict:
         if spec.provider == "anthropic":
             return self._chat_anthropic(spec, messages, max_tokens, temperature, **kwargs)
-        elif spec.provider in ("openai", "openrouter"):
+        elif spec.provider in ("openai", "openrouter", "nvidia"):
             return self._chat_openai_compat(spec, messages, max_tokens, temperature, **kwargs)
         elif spec.provider == "ollama":
             return self._chat_ollama(spec, messages, max_tokens, temperature)
@@ -136,7 +136,7 @@ class LLMClient:
         if spec.provider == "anthropic":
             async for chunk in self._stream_anthropic(spec, messages, max_tokens, temperature):
                 yield chunk
-        elif spec.provider in ("openai", "openrouter"):
+        elif spec.provider in ("openai", "openrouter", "nvidia"):
             async for chunk in self._stream_openai_compat(spec, messages, max_tokens, temperature):
                 yield chunk
         elif spec.provider == "ollama":
