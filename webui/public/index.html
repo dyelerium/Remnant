@@ -567,13 +567,18 @@
 
           <!-- WhatsApp -->
           <div class="connector-card">
+            <!-- Header row -->
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
               <span style="font-size:20px">💬</span>
-              <div>
+              <div style="flex:1">
                 <div style="font-weight:600">WhatsApp</div>
                 <div style="font-size:12px;color:var(--text-dim)">Via whatsapp-web.js sidecar container</div>
               </div>
+              <!-- Status badge -->
+              <span class="wa-status-badge" :class="waStatusCls" x-text="waStatusLabel"></span>
             </div>
+
+            <!-- Sidecar URL input -->
             <div class="form-group">
               <label class="form-label">Sidecar URL</label>
               <div style="display:flex;gap:8px">
@@ -581,7 +586,90 @@
                        x-model="connectorForm.whatsapp" style="flex:1" />
                 <button class="btn-secondary" @click="saveConnectors()">Save</button>
               </div>
-              <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Run <code style="background:var(--bg4);padding:1px 4px;border-radius:2px">docker compose up whatsapp-sidecar</code> to start the bridge.</p>
+              <p style="font-size:11px;color:var(--text-muted);margin-top:4px">
+                Run <code style="background:var(--bg4);padding:1px 4px;border-radius:2px">docker compose up -d whatsapp-sidecar</code> to start the bridge.
+              </p>
+            </div>
+
+            <!-- QR / Connected section -->
+            <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+
+              <!-- Not reachable -->
+              <template x-if="waStatus && !waStatus.sidecar_reachable">
+                <div>
+                  <div style="font-size:12px;color:var(--err);margin-bottom:10px">
+                    ✗ Sidecar not reachable at <strong x-text="waStatus.sidecar_url"></strong>
+                  </div>
+                  <p style="font-size:11px;color:var(--text-muted)">
+                    Make sure the container is running, then click <em>Check connection</em>.
+                  </p>
+                </div>
+              </template>
+
+              <!-- Authenticated / ready -->
+              <template x-if="waStatus && waStatus.sidecar_reachable && waStatus.ready">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#10b981">
+                    <span style="font-size:18px">✅</span>
+                    WhatsApp is connected and ready.
+                  </div>
+                  <button class="btn-secondary" style="align-self:flex-start"
+                          @click="waLogout()">Disconnect (logout)</button>
+                </div>
+              </template>
+
+              <!-- Sidecar reachable but not authenticated — show QR -->
+              <template x-if="waStatus && waStatus.sidecar_reachable && !waStatus.ready">
+                <div>
+                  <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">
+                    Scan the QR code below with your WhatsApp mobile app to connect.
+                  </p>
+
+                  <!-- QR loading -->
+                  <template x-if="waQrLoading && !waQrData">
+                    <div style="display:flex;align-items:center;gap:10px;padding:20px 0">
+                      <span class="spinner"></span>
+                      <span style="font-size:13px;color:var(--text-dim)">Fetching QR code…</span>
+                    </div>
+                  </template>
+
+                  <!-- QR error -->
+                  <template x-if="waQrError && !waQrData">
+                    <div style="font-size:12px;color:var(--err);margin-bottom:10px" x-text="waQrError"></div>
+                  </template>
+
+                  <!-- QR image -->
+                  <template x-if="waQrData">
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+                      <div class="wa-qr-frame">
+                        <img :src="waQrData" alt="WhatsApp QR" style="width:200px;height:200px;display:block;border-radius:4px" />
+                      </div>
+                      <p style="font-size:11px;color:var(--text-muted);text-align:center">
+                        Open WhatsApp → Linked devices → Link a device → scan this code.<br/>
+                        QR refreshes automatically every 30 s.
+                      </p>
+                    </div>
+                  </template>
+                </div>
+              </template>
+
+              <!-- Action buttons row -->
+              <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+                <button class="btn-secondary" @click="waCheckStatus()"
+                        :disabled="waQrLoading"
+                        style="display:flex;align-items:center;gap:6px">
+                  <span x-show="waQrLoading" class="spinner" style="width:12px;height:12px;border-width:1.5px"></span>
+                  Check connection
+                </button>
+                <!-- Show QR button only when reachable but not authenticated yet -->
+                <template x-if="waStatus && waStatus.sidecar_reachable && !waStatus.ready">
+                  <button class="btn-primary" style="font-size:13px"
+                          @click="waFetchQr()">
+                    🔗 Get QR code
+                  </button>
+                </template>
+              </div>
+
             </div>
           </div>
         </div>

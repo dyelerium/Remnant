@@ -175,6 +175,7 @@ def create_app() -> FastAPI:
     from api.routes.health import router as health_router
     from api.routes.admin import router as admin_router
     from api.routes.settings import router as settings_router
+    from api.routes.whatsapp import router as whatsapp_router
     from api.mcp_endpoints import router as mcp_router
 
     app = FastAPI(
@@ -201,6 +202,7 @@ def create_app() -> FastAPI:
     app.include_router(projects_router, prefix="/api")
     app.include_router(admin_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
+    app.include_router(whatsapp_router, prefix="/api")
     app.include_router(mcp_router)
 
     # Serve Web UI — public/ (no build step) takes priority, then dist/ if built

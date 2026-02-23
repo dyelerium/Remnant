@@ -1198,6 +1198,30 @@ main {
 }
 
 /* ============================================================
+   WHATSAPP QR PANEL
+   ============================================================ */
+
+.wa-status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.wa-badge-connected { background: rgba(16,185,129,0.15); color: #10b981; }
+.wa-badge-pending   { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.wa-badge-offline   { background: rgba(239,68,68,0.15);  color: #ef4444; }
+.wa-badge-unknown   { background: var(--bg4); color: var(--text-muted); }
+
+.wa-qr-frame {
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px;
+  display: inline-block;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 

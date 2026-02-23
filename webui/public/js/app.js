@@ -142,6 +142,13 @@ document.addEventListener('alpine:init', () => {
     settingsEditingFile: null,
     settingsEditingContent: '',
 
+    /* --- WhatsApp QR --- */
+    waStatus: null,       // { sidecar_reachable, ready, sidecar_url }
+    waQrData: null,       // base64 data URL of QR image
+    waQrError: null,
+    waQrLoading: false,
+    waQrPollTimer: null,  // setInterval handle for auto-refresh
+
     /* --- Wizard --- */
     wizardOpen: false,
     wizardStep: 1,
@@ -730,6 +737,115 @@ document.addEventListener('alpine:init', () => {
     async loadConnectors() {
       await this.loadSettingsData();
       this.connectorForm.whatsapp = this.settingsData.connectors?.whatsapp_sidecar_url || '';
+      // Auto-check WhatsApp status when tab opens
+      await this.waCheckStatus();
+    },
+
+    /* ================================================================
+       WHATSAPP QR
+       ================================================================ */
+    get waStatusLabel() {
+      if (!this.waStatus) return 'Unknown';
+      if (!this.waStatus.sidecar_reachable) return 'Offline';
+      if (this.waStatus.ready) return 'Connected';
+      return 'Not authenticated';
+    },
+
+    get waStatusCls() {
+      if (!this.waStatus) return 'wa-badge-unknown';
+      if (!this.waStatus.sidecar_reachable) return 'wa-badge-offline';
+      if (this.waStatus.ready) return 'wa-badge-connected';
+      return 'wa-badge-pending';
+    },
+
+    async waCheckStatus() {
+      this.waQrLoading = true;
+      try {
+        const resp = await fetch('/api/whatsapp/status');
+        if (resp.ok) {
+          this.waStatus = await resp.json();
+          // If just connected, stop polling and clear QR
+          if (this.waStatus.ready) {
+            this.waStopPolling();
+            this.waQrData = null;
+          }
+        }
+      } catch (_) {
+        this.waStatus = { sidecar_reachable: false, ready: false };
+      } finally {
+        this.waQrLoading = false;
+      }
+    },
+
+    async waFetchQr() {
+      this.waQrLoading = true;
+      this.waQrError = null;
+      try {
+        const resp = await fetch('/api/whatsapp/qr');
+        const data = await resp.json();
+        if (!resp.ok) {
+          this.waQrError = data.detail || 'Failed to get QR code';
+          this.waQrData = null;
+        } else if (data.status === 'authenticated') {
+          // Already authenticated — refresh status
+          this.waQrData = null;
+          await this.waCheckStatus();
+        } else {
+          this.waQrData = data.qr || null;
+          if (!this.waQrData) {
+            this.waQrError = 'QR not ready yet — sidecar is still initialising. Try again in a few seconds.';
+          }
+          // Start polling to auto-refresh QR and detect when authenticated
+          this.waStartPolling();
+        }
+      } catch (e) {
+        this.waQrError = 'Error: ' + e.message;
+        this.waQrData = null;
+      } finally {
+        this.waQrLoading = false;
+      }
+    },
+
+    waStartPolling() {
+      this.waStopPolling();
+      // Poll every 20s: refresh QR (which rotates ~30s) and check auth status
+      this.waQrPollTimer = setInterval(async () => {
+        // First check if now authenticated
+        await this.waCheckStatus();
+        if (this.waStatus?.ready) return; // stop handled in waCheckStatus
+
+        // Refresh QR silently
+        try {
+          const resp = await fetch('/api/whatsapp/qr');
+          const data = await resp.json();
+          if (resp.ok && data.qr) {
+            this.waQrData = data.qr;
+          } else if (data.status === 'authenticated') {
+            this.waStopPolling();
+            this.waQrData = null;
+            await this.waCheckStatus();
+          }
+        } catch (_) {}
+      }, 20000);
+    },
+
+    waStopPolling() {
+      if (this.waQrPollTimer) {
+        clearInterval(this.waQrPollTimer);
+        this.waQrPollTimer = null;
+      }
+    },
+
+    async waLogout() {
+      if (!confirm('Disconnect WhatsApp? You will need to scan a QR code again to reconnect.')) return;
+      try {
+        const resp = await fetch('/api/whatsapp/logout', { method: 'POST' });
+        if (resp.ok) {
+          this.waStatus = { ...this.waStatus, ready: false };
+          this.waQrData = null;
+          this.waQrError = null;
+        }
+      } catch (_) {}
     },
 
     async saveConnectors() {
