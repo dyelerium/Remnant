@@ -14,6 +14,20 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
 
+# Active WebSocket connections — used for server-push broadcasts (e.g. WhatsApp messages)
+_ws_connections: set[WebSocket] = set()
+
+
+async def broadcast(message: dict) -> None:
+    """Push a JSON message to all currently connected WebSocket clients."""
+    dead: set[WebSocket] = set()
+    for ws in list(_ws_connections):  # snapshot to allow safe removal
+        try:
+            await ws.send_json(message)
+        except Exception:
+            dead.add(ws)
+    _ws_connections.difference_update(dead)  # in-place, no rebind
+
 
 class ChatRequest(BaseModel):
     message: str
@@ -58,6 +72,7 @@ async def websocket_chat(ws: WebSocket) -> None:
     orchestrator = ws.app.state.orchestrator
     retriever = ws.app.state.retriever
 
+    _ws_connections.add(ws)
     try:
         while True:
             raw = await ws.receive_text()
@@ -95,3 +110,5 @@ async def websocket_chat(ws: WebSocket) -> None:
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
+    finally:
+        _ws_connections.discard(ws)

@@ -275,6 +275,12 @@ document.addEventListener('alpine:init', () => {
     },
 
     handleWsMessage(msg) {
+      // Server-pushed WhatsApp conversation — handle independently of activeChat
+      if (msg.type === 'wa_message') {
+        this.handleWhatsAppPush(msg);
+        return;
+      }
+
       const chat = this.activeChat;
       if (!chat) return;
       if (msg.type === 'start') return;
@@ -313,6 +319,50 @@ document.addEventListener('alpine:init', () => {
           last.parts = parseAgentOutput(last.raw);
           last.streaming = false;
         }
+      }
+    },
+
+    handleWhatsAppPush(msg) {
+      // Find or create a persistent chat for this WhatsApp session
+      const sessionId = msg.session_id;  // "wa-491234567890@c.us"
+      const phone = msg.sender ? msg.sender.split('@')[0] : 'unknown';
+
+      let chat = this.chats.find(c => c.sessionId === sessionId);
+      if (!chat) {
+        chat = {
+          id: uid(),
+          title: `WhatsApp: ${phone}`,
+          projectId: null,
+          sessionId,
+          messages: [],
+          ts: new Date().toISOString(),
+          channel: 'whatsapp',
+        };
+        this.chats.unshift(chat);
+      }
+
+      if (msg.user_message) {
+        chat.messages.push({
+          role: 'user',
+          content: msg.user_message,
+          ts: new Date().toISOString(),
+        });
+      }
+      if (msg.response) {
+        chat.messages.push({
+          role: 'agent',
+          raw: msg.response,
+          parts: parseAgentOutput(msg.response),
+          streaming: false,
+          ts: new Date().toISOString(),
+        });
+      }
+
+      // Switch to this chat only if the user isn't actively streaming another response
+      if (!this.isStreaming) {
+        this.activeChatId = chat.id;
+        this.activeView = null;
+        this.$nextTick(() => this.scrollToBottom());
       }
     },
 

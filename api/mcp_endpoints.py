@@ -6,9 +6,11 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import uuid
 from typing import Any, Optional
 
+import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -159,7 +161,7 @@ async def whatsapp_incoming(body: dict, request: Request) -> dict:
     orchestrator = request.app.state.orchestrator
     retriever = request.app.state.retriever
 
-    sender = body.get("from", "unknown")
+    sender = body.get("from", "unknown")   # e.g. "491234567890@c.us"
     message = body.get("body", "")
 
     if not message:
@@ -173,7 +175,7 @@ async def whatsapp_incoming(body: dict, request: Request) -> dict:
     except Exception:
         memory_context = ""
 
-    response_parts = []
+    response_parts: list[str] = []
     async for chunk in orchestrator.handle(
         message=message,
         session_id=f"wa-{sender}",
@@ -182,7 +184,34 @@ async def whatsapp_incoming(body: dict, request: Request) -> dict:
     ):
         response_parts.append(chunk)
 
-    return {"status": "processed", "response_length": len("".join(response_parts))}
+    response_text = "".join(response_parts)
+
+    # 1. Send the response back to the user on WhatsApp
+    if response_text:
+        phone = sender.split("@")[0]
+        sidecar_url = os.environ.get("WHATSAPP_SIDECAR_URL", "http://remnant-whatsapp:3000")
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                await client.post(
+                    f"{sidecar_url}/send",
+                    json={"phone": phone, "message": response_text},
+                )
+            logger.info("[WHATSAPP] Response sent to %s", phone)
+        except Exception as exc:
+            logger.error("[WHATSAPP] Failed to send response via sidecar: %s", exc)
+
+    # 2. Push the conversation to all connected web UI clients
+    broadcast_fn = getattr(request.app.state, "broadcast", None)
+    if broadcast_fn:
+        await broadcast_fn({
+            "type": "wa_message",
+            "session_id": f"wa-{sender}",
+            "sender": sender,
+            "user_message": message,
+            "response": response_text,
+        })
+
+    return {"status": "processed", "response_length": len(response_text)}
 
 
 # -- Tool dispatch helpers --

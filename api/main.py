@@ -152,10 +152,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.tool_registry = tool_registry
     app.state.skill_registry = skill_registry
     app.state.project_manager = project_manager
+    from api.routes.chat import broadcast as _broadcast
     app.state.orchestrator = orchestrator
     app.state.agent_graph = agent_graph
     app.state.lane_manager = lane_manager
     app.state.scheduler = scheduler
+    app.state.broadcast = _broadcast  # WebSocket push for WhatsApp / server-initiated events
 
     logger.info("Remnant ready")
     yield
