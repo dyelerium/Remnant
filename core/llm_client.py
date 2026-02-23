@@ -133,6 +133,9 @@ class LLMClient:
         elif spec.provider in ("openai", "openrouter"):
             async for chunk in self._stream_openai_compat(spec, messages, max_tokens, temperature):
                 yield chunk
+        elif spec.provider == "ollama":
+            async for chunk in self._stream_ollama(spec, messages, max_tokens, temperature):
+                yield chunk
         else:
             # Fallback: non-streaming
             result = self._dispatch_chat(spec, messages, max_tokens, temperature)
@@ -280,3 +283,29 @@ class LLMClient:
             "model": spec.model,
             "provider": spec.provider,
         }
+
+    async def _stream_ollama(self, spec, messages, max_tokens, temperature):
+        import httpx
+        import json
+        base = spec.base_url or "http://localhost:11434"
+        payload = {
+            "model": spec.model,
+            "messages": messages,
+            "stream": True,
+            "options": {"temperature": temperature, "num_predict": max_tokens or 4096},
+        }
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream("POST", f"{base}/api/chat", json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        chunk = data.get("message", {}).get("content", "")
+                        if chunk:
+                            yield chunk
+                        if data.get("done"):
+                            break
+                    except json.JSONDecodeError:
+                        continue

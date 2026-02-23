@@ -3,11 +3,22 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 import yaml
+
+
+def _resolve_env(value: Optional[str]) -> Optional[str]:
+    """Expand ${VAR:default} patterns in config strings using environment variables."""
+    if not value:
+        return value
+    def _replacer(m: re.Match) -> str:
+        var, default = m.group(1), m.group(2) if m.group(2) is not None else ""
+        return os.environ.get(var, default)
+    return re.sub(r"\$\{([^}:]+)(?::([^}]*))?\}", _replacer, value)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +54,7 @@ class ProviderRegistry:
         for provider_name, provider_cfg in self._providers_cfg.items():
             api_key_env = provider_cfg.get("api_key_env")
             api_key = os.environ.get(api_key_env, "") if api_key_env else None
-            base_url = provider_cfg.get("base_url")
+            base_url = _resolve_env(provider_cfg.get("base_url"))
 
             extra_headers = provider_cfg.get("extra_headers", {})
 

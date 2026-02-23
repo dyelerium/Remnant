@@ -159,14 +159,22 @@ class OllamaRequest(BaseModel):
 
 
 @router.post("/settings/ollama")
-async def save_ollama_settings(body: OllamaRequest) -> dict:
-    """Save Ollama base URL (and optional API key) to .env."""
+async def save_ollama_settings(body: OllamaRequest, request: Request) -> dict:
+    """Save Ollama base URL (and optional API key) to .env, then reload registry."""
     url = body.url.rstrip("/")
     os.environ["OLLAMA_BASE_URL"] = url
     _update_dot_env("OLLAMA_BASE_URL", url)
     if body.api_key:
         os.environ["OLLAMA_API_KEY"] = body.api_key
         _update_dot_env("OLLAMA_API_KEY", body.api_key)
+
+    # Reload registry so Ollama models get the resolved base_url immediately
+    registry = request.app.state.registry
+    registry.reload_from_yaml({
+        "providers": registry._providers_cfg,
+        "defaults": registry._defaults,
+    })
+
     return {"status": "saved", "url": url}
 
 
