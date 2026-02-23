@@ -1,10 +1,10 @@
 defaults:
   chat: ollama/qwen3:4b
-  compaction: openrouter/stepfun/step-3.5-flash:free
-  curator: openrouter/stepfun/step-3.5-flash:free
+  compaction: ollama/qwen3:4b
+  curator: ollama/qwen3:4b
   embedding: sentence-transformers/all-MiniLM-L6-v2
-  fast: openrouter/stepfun/step-3.5-flash:free
-  planning: openrouter/stepfun/step-3.5-flash:free
+  fast: ollama/qwen3:4b
+  planning: ollama/qwen3:4b
 providers:
   anthropic:
     api_key_env: ANTHROPIC_API_KEY
@@ -256,6 +256,10 @@ providers:
         temperature: 0.7
         use_cases:
         - chat
+        - curator
+        - compaction
+        - fast
+        - planning
     name: Ollama (local)
   openai:
     api_key_env: OPENAI_API_KEY
