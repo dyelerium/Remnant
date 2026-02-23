@@ -56,7 +56,13 @@ class TelegramBot:
             ):
                 response_parts.append(chunk)
 
-            response_text = "".join(response_parts).strip()
+            # Strip internal runtime markers ([GEN], [EXE], [PLAN], etc.)
+            import re as _re
+            response_text = "".join(response_parts)
+            response_text = _re.sub(r"^\[GEN\] ", "", response_text)
+            response_text = _re.sub(r"\[EXE\] \d+ tool\(s\) executed\n?", "", response_text)
+            response_text = response_text.strip()
+
             if response_text:
                 # Telegram max message length is 4096 chars
                 for i in range(0, len(response_text), 4000):
