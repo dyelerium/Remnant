@@ -10,8 +10,10 @@ import os
 import uuid
 from typing import Any, Optional
 
+import asyncio
+
 import httpx
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -154,21 +156,18 @@ async def mcp_stream(request: Request) -> StreamingResponse:
     return StreamingResponse(_stream(), media_type="text/event-stream")
 
 
-# Internal WhatsApp webhook (from sidecar)
-@router.post("/internal/whatsapp")
-async def whatsapp_incoming(body: dict, request: Request) -> dict:
-    """Receive incoming WhatsApp messages from the Node.js sidecar."""
-    orchestrator = request.app.state.orchestrator
-    retriever = request.app.state.retriever
+# ---------------------------------------------------------------------------
+# Internal WhatsApp webhook (called by the Node.js sidecar)
+# ---------------------------------------------------------------------------
 
-    sender = body.get("from", "unknown")   # e.g. "491234567890@c.us"
-    message = body.get("body", "")
-
-    if not message:
-        return {"status": "ignored"}
-
-    logger.info("[WHATSAPP] Message from %s: %s", sender, message[:80])
-
+async def _process_whatsapp(
+    sender: str,
+    message: str,
+    orchestrator,
+    retriever,
+    broadcast_fn,
+) -> None:
+    """Background task: run agent, reply on WhatsApp, push to web UI."""
     try:
         chunks = retriever.retrieve(message)
         memory_context = retriever.format_for_prompt(chunks)
@@ -185,33 +184,71 @@ async def whatsapp_incoming(body: dict, request: Request) -> dict:
         response_parts.append(chunk)
 
     response_text = "".join(response_parts)
+    if not response_text:
+        return
 
-    # 1. Send the response back to the user on WhatsApp
-    if response_text:
-        phone = sender.split("@")[0]
-        sidecar_url = os.environ.get("WHATSAPP_SIDECAR_URL", "http://remnant-whatsapp:3000")
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                await client.post(
-                    f"{sidecar_url}/send",
-                    json={"phone": phone, "message": response_text},
-                )
-            logger.info("[WHATSAPP] Response sent to %s", phone)
-        except Exception as exc:
-            logger.error("[WHATSAPP] Failed to send response via sidecar: %s", exc)
+    # 1. Send reply back to WhatsApp via sidecar.
+    #    Pass the full sender ID (e.g. "351912345678@lid") so the sidecar
+    #    can use it directly — avoids the "No LID for user" error that happens
+    #    when we strip the suffix and reconstruct "@c.us".
+    sidecar_url = os.environ.get("WHATSAPP_SIDECAR_URL", "http://remnant-whatsapp:3000")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.post(
+                f"{sidecar_url}/send",
+                json={"phone": sender, "message": response_text},
+            )
+        logger.info("[WHATSAPP] Response sent to %s (%d chars)", sender, len(response_text))
+    except Exception as exc:
+        logger.error("[WHATSAPP] Failed to send response via sidecar: %s", exc)
 
-    # 2. Push the conversation to all connected web UI clients
-    broadcast_fn = getattr(request.app.state, "broadcast", None)
+    # 2. Push the conversation to open web UI tabs.
     if broadcast_fn:
-        await broadcast_fn({
-            "type": "wa_message",
-            "session_id": f"wa-{sender}",
-            "sender": sender,
-            "user_message": message,
-            "response": response_text,
-        })
+        try:
+            await broadcast_fn({
+                "type": "wa_message",
+                "session_id": f"wa-{sender}",
+                "sender": sender,
+                "user_message": message,
+                "response": response_text,
+            })
+        except Exception as exc:
+            logger.error("[WHATSAPP] Broadcast failed: %s", exc)
 
-    return {"status": "processed", "response_length": len(response_text)}
+
+@router.post("/internal/whatsapp", status_code=202)
+async def whatsapp_incoming(
+    body: dict,
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> dict:
+    """Receive incoming WhatsApp messages from the Node.js sidecar.
+
+    Returns 202 immediately so the sidecar's HTTP timeout never fires,
+    then processes the message (LLM + reply + broadcast) in the background.
+    """
+    sender = body.get("from", "unknown")
+    message = body.get("body", "")
+
+    if not message:
+        return {"status": "ignored"}
+
+    logger.info("[WHATSAPP] Message from %s: %s", sender, message[:80])
+
+    # Capture state now — don't hold the request object in the background task
+    orchestrator = request.app.state.orchestrator
+    retriever = request.app.state.retriever
+    broadcast_fn = getattr(request.app.state, "broadcast", None)
+
+    background_tasks.add_task(
+        _process_whatsapp,
+        sender=sender,
+        message=message,
+        orchestrator=orchestrator,
+        retriever=retriever,
+        broadcast_fn=broadcast_fn,
+    )
+    return {"status": "accepted"}
 
 
 # -- Tool dispatch helpers --

@@ -4,6 +4,23 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
 const qrcode = require('qrcode');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+// Remove stale Chromium lock files left by previous container instances.
+// Without this, restarting the container causes "profile is in use" errors.
+(function cleanChromiumLocks() {
+  const authDir = '.wwebjs_auth';
+  if (!fs.existsSync(authDir)) return;
+  const lockFiles = ['SingletonLock', 'SingletonSocket', 'SingletonCookie'];
+  for (const entry of fs.readdirSync(authDir)) {
+    const sessionDir = path.join(authDir, entry);
+    for (const lock of lockFiles) {
+      const p = path.join(sessionDir, lock);
+      try { fs.unlinkSync(p); console.log(`[WhatsApp] Removed stale lock: ${p}`); } catch (_) {}
+    }
+  }
+})();
 
 const PORT = process.env.PORT || 3000;
 const REMNANT_URL = process.env.REMNANT_URL || 'http://localhost:8000';
@@ -102,7 +119,7 @@ app.get('/qr', (req, res) => {
 });
 
 // POST /send — send a WhatsApp message
-// Body: { phone: "491234567890", message: "Hello!" }
+// Body: { phone: "491234567890@c.us" | "491234567890@lid" | "491234567890", message: "Hello!" }
 app.post('/send', async (req, res) => {
   if (!clientReady) {
     return res.status(503).json({ error: 'WhatsApp client not ready. Scan QR first.' });
@@ -113,14 +130,16 @@ app.post('/send', async (req, res) => {
     return res.status(400).json({ error: 'phone and message are required' });
   }
 
-  const chatId = phone.replace(/\D/g, '') + '@c.us';
+  // Accept full chat IDs (e.g. "351912345678@lid" or "351912345678@c.us")
+  // or plain phone numbers (appended with @c.us for backwards compatibility).
+  const chatId = phone.includes('@') ? phone : phone.replace(/\D/g, '') + '@c.us';
 
   try {
     await client.sendMessage(chatId, message);
     console.log('[WhatsApp] Sent message to', chatId);
     res.json({ status: 'sent', to: chatId });
   } catch (err) {
-    console.error('[WhatsApp] Send error:', err.message);
+    console.error('[WhatsApp] Send error:', err.message, err.stack);
     res.status(500).json({ error: err.message });
   }
 });
