@@ -139,6 +139,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start Curator background worker
     await curator.start()
 
+    # -- Telegram bot (started if token present at launch) --
+    import os as _os
+    import asyncio as _asyncio
+    from channels.telegram_bot import TelegramBot
+    _telegram_token = _os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    telegram_bot = None
+    if _telegram_token:
+        telegram_bot = TelegramBot(_telegram_token, orchestrator, retriever)
+        _asyncio.create_task(telegram_bot.start())
+        logger.info("[TELEGRAM] Bot started")
+    else:
+        logger.info("[TELEGRAM] No TELEGRAM_BOT_TOKEN set — bot disabled")
+
     # Expose singletons via app.state
     app.state.config = config
     app.state.redis = redis_client
@@ -163,6 +176,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.lane_manager = lane_manager
     app.state.scheduler = scheduler
     app.state.broadcast = _broadcast  # WebSocket push for WhatsApp / server-initiated events
+    app.state.telegram_bot = telegram_bot
 
     logger.info("Remnant ready")
     yield
@@ -171,6 +185,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Remnant shutting down…")
     await curator.stop()
     scheduler.stop()
+    if app.state.telegram_bot:
+        await app.state.telegram_bot.stop()
 
 
 def create_app() -> FastAPI:

@@ -61,19 +61,15 @@ async def whatsapp_qr() -> dict:
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(f"{url}/qr")
-            if resp.status_code == 404:
-                raise HTTPException(
-                    status_code=404,
-                    detail="No QR code available yet — sidecar is still initialising",
-                )
             data = resp.json()
+            if resp.status_code == 404:
+                # Sidecar is initialising — QR not generated yet; tell frontend to retry
+                return {"status": "not_ready", "qr": None}
             return {
                 "status": data.get("status", "unknown"),
                 "qr": data.get("qr"),       # base64 data URL or null
                 "timestamp": data.get("timestamp"),
             }
-    except HTTPException:
-        raise
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Sidecar unreachable: {exc}")
 

@@ -1010,11 +1010,13 @@ document.addEventListener('alpine:init', () => {
           // Already authenticated — refresh status
           this.waQrData = null;
           await this.waCheckStatus();
+        } else if (data.status === 'not_ready' || !data.qr) {
+          // Sidecar is still initialising — start polling silently until QR appears
+          this.waQrData = null;
+          this.waQrError = null;
+          this.waStartQrInitPolling();
         } else {
-          this.waQrData = data.qr || null;
-          if (!this.waQrData) {
-            this.waQrError = 'QR not ready yet — sidecar is still initialising. Try again in a few seconds.';
-          }
+          this.waQrData = data.qr;
           // Start polling to auto-refresh QR and detect when authenticated
           this.waStartPolling();
         }
@@ -1024,6 +1026,30 @@ document.addEventListener('alpine:init', () => {
       } finally {
         this.waQrLoading = false;
       }
+    },
+
+    waStartQrInitPolling() {
+      // Poll every 3 s while sidecar is still generating the initial QR code
+      this.waStopPolling();
+      this.waQrPollTimer = setInterval(async () => {
+        try {
+          const resp = await fetch('/api/whatsapp/qr');
+          const data = await resp.json();
+          if (!resp.ok) { this.waStopPolling(); return; }
+          if (data.status === 'authenticated') {
+            this.waStopPolling();
+            this.waQrData = null;
+            await this.waCheckStatus();
+          } else if (data.qr) {
+            // QR is now ready — display it and switch to normal refresh cadence
+            this.waStopPolling();
+            this.waQrData = data.qr;
+            this.waQrError = null;
+            this.waStartPolling();
+          }
+          // else still not_ready — keep polling
+        } catch (_) {}
+      }, 3000);
     },
 
     waStartPolling() {

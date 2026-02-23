@@ -149,11 +149,31 @@ class ConnectorRequest(BaseModel):
 @router.post("/settings/connectors")
 async def set_connectors(body: ConnectorRequest, request: Request) -> dict:
     """Save connector settings."""
+    import asyncio
     saved = {}
     if body.telegram_bot_token is not None:
         os.environ["TELEGRAM_BOT_TOKEN"] = body.telegram_bot_token
         _update_dot_env("TELEGRAM_BOT_TOKEN", body.telegram_bot_token)
         saved["telegram_bot_token"] = "saved"
+
+        # Stop old bot (if running) and start a new one with the new token
+        old_bot = getattr(request.app.state, "telegram_bot", None)
+        if old_bot:
+            try:
+                await old_bot.stop()
+            except Exception:
+                pass
+        if body.telegram_bot_token.strip():
+            from channels.telegram_bot import TelegramBot
+            new_bot = TelegramBot(
+                body.telegram_bot_token.strip(),
+                request.app.state.orchestrator,
+                request.app.state.retriever,
+            )
+            request.app.state.telegram_bot = new_bot
+            asyncio.create_task(new_bot.start())
+            logger.info("[TELEGRAM] Bot (re)started with new token")
+
     if body.whatsapp_sidecar_url is not None:
         os.environ["WHATSAPP_SIDECAR_URL"] = body.whatsapp_sidecar_url
         _update_dot_env("WHATSAPP_SIDECAR_URL", body.whatsapp_sidecar_url)
