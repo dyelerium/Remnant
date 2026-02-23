@@ -4,7 +4,10 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +23,11 @@ class ModelSpec:
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     extra_headers: dict = field(default_factory=dict)
+    has_vision: bool = False
+    max_completion_tokens: int = 4096
+    history_fraction: float = 0.7
+    temperature: float = 0.7
+    extra_pricing: dict = field(default_factory=dict)
 
 
 class ProviderRegistry:
@@ -51,6 +59,11 @@ class ProviderRegistry:
                     api_key=api_key,
                     base_url=base_url,
                     extra_headers=extra_headers,
+                    has_vision=bool(model_cfg.get("has_vision", False)),
+                    max_completion_tokens=int(model_cfg.get("max_completion_tokens", 4096)),
+                    history_fraction=float(model_cfg.get("history_fraction", 0.7)),
+                    temperature=float(model_cfg.get("temperature", 0.7)),
+                    extra_pricing=model_cfg.get("extra_pricing", {}),
                 )
 
         logger.debug("Loaded %d model specs", len(self._models))
@@ -108,3 +121,28 @@ class ProviderRegistry:
         """Override the default model for a use-case at runtime."""
         self._defaults[use_case] = model_key
         logger.info("Default model for %s set to %s", use_case, model_key)
+
+    def add_or_update_model(self, key: str, spec: ModelSpec) -> None:
+        """Add or update a model spec in the registry."""
+        self._models[key] = spec
+        logger.info("Model %s added/updated in registry", key)
+
+    def reload_from_yaml(self, config: dict) -> None:
+        """Reload the registry from a new config dict (clears existing models)."""
+        self._providers_cfg = config.get("providers", {})
+        self._defaults = config.get("defaults", {})
+        self._models = {}
+        self._load()
+        logger.info("Registry reloaded — %d models loaded", len(self._models))
+
+    def save_defaults_to_yaml(self, yaml_path: Path) -> None:
+        """Persist current in-memory defaults back to a YAML file."""
+        if not yaml_path.exists():
+            logger.warning("YAML path %s does not exist, skipping save", yaml_path)
+            return
+        with open(yaml_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+        config["defaults"] = dict(self._defaults)
+        with open(yaml_path, "w", encoding="utf-8") as f:
+            yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+        logger.info("Defaults saved to %s", yaml_path)

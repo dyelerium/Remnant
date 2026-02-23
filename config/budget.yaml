@@ -1,44 +1,28 @@
-# Budget configuration — token and cost caps per scope
-# Caps are checked before each LLM call. On breach: fallback or stop.
-
 global:
-  # Hard caps — stop if exceeded
-  max_tokens_per_day: 5000000
-  max_cost_usd_per_day: 20.0
-  max_tokens_per_hour: 500000
-  max_cost_usd_per_hour: 5.0
-  # Soft warning thresholds (fraction of cap)
-  warn_at_fraction: 0.8
-
-  # Fallback chain: if primary is over budget, try these in order
   fallback_chain:
-    - "anthropic/claude-haiku-4-5-20251001"
-    - "ollama/llama3.1:8b"
-
-  # What to do when ALL fallbacks exhausted
-  on_budget_exhausted: "stop"  # stop | error | queue
-
-# Per-project overrides (project_id keys)
+  - anthropic/claude-haiku-4-5-20251001
+  - ollama/llama3.1:8b
+  max_cost_usd_per_day: 5.0
+  max_cost_usd_per_hour: 5.0
+  max_tokens_per_day: 1000000
+  max_tokens_per_hour: 500000
+  on_budget_exhausted: stop
+  warn_at_fraction: 0.8
 projects:
   _defaults:
-    max_tokens_per_day: 500000
-    max_cost_usd_per_day: 2.0
     fallback_chain:
-      - "anthropic/claude-haiku-4-5-20251001"
-
-# Per use-case caps (applied in addition to global)
+    - anthropic/claude-haiku-4-5-20251001
+    max_cost_usd_per_day: 2.0
+    max_tokens_per_day: 500000
+redis_prefix: budget
 use_cases:
-  curator:
-    max_tokens_per_run: 10000
-    max_cost_usd_per_run: 0.05
   compaction:
+    max_cost_usd_per_run: 0.1
     max_tokens_per_run: 20000
-    max_cost_usd_per_run: 0.10
+  curator:
+    max_cost_usd_per_run: 0.05
+    max_tokens_per_run: 10000
   planning:
+    max_cost_usd_per_session: 0.5
     max_tokens_per_session: 50000
-    max_cost_usd_per_session: 0.50
-
-# Redis key prefix for counters
-redis_prefix: "budget"
-# Rolling window for daily counters (seconds)
 window_seconds: 86400

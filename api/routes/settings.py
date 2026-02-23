@@ -1,14 +1,18 @@
-"""GET/POST /settings — API keys, model config, connector config."""
+"""GET/POST /settings — API keys, model config, connector config, Ollama, budget."""
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Optional
 
+import httpx
+import yaml
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["settings"])
 
 # Env vars we expose status of (never return actual values)
@@ -74,6 +78,10 @@ async def get_settings(request: Request) -> dict:
             "whatsapp_sidecar_url": os.environ.get("WHATSAPP_SIDECAR_URL", ""),
         },
         "default_model": default_model,
+        "ollama": {
+            "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+            "api_key_set": bool(os.environ.get("OLLAMA_API_KEY", "")),
+        },
     }
 
 
@@ -139,3 +147,84 @@ async def set_connectors(body: ConnectorRequest, request: Request) -> dict:
         _update_dot_env("WHATSAPP_SIDECAR_URL", body.whatsapp_sidecar_url)
         saved["whatsapp_sidecar_url"] = "saved"
     return {"status": "saved", "saved": saved}
+
+
+# -----------------------------------------------------------------------
+# Ollama settings
+# -----------------------------------------------------------------------
+
+class OllamaRequest(BaseModel):
+    url: str        # e.g. "http://192.168.1.5:11434"
+    api_key: str = ""  # optional for cloud auth
+
+
+@router.post("/settings/ollama")
+async def save_ollama_settings(body: OllamaRequest) -> dict:
+    """Save Ollama base URL (and optional API key) to .env."""
+    url = body.url.rstrip("/")
+    os.environ["OLLAMA_BASE_URL"] = url
+    _update_dot_env("OLLAMA_BASE_URL", url)
+    if body.api_key:
+        os.environ["OLLAMA_API_KEY"] = body.api_key
+        _update_dot_env("OLLAMA_API_KEY", body.api_key)
+    return {"status": "saved", "url": url}
+
+
+@router.get("/settings/ollama/test")
+async def test_ollama_connection() -> dict:
+    """Test connectivity to the configured Ollama instance."""
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+    api_key = os.environ.get("OLLAMA_API_KEY", "")
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    try:
+        async with httpx.AsyncClient(timeout=3) as client:
+            resp = await client.get(f"{base_url}/api/tags", headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+        models = [m.get("name", "") for m in data.get("models", [])]
+        return {"reachable": True, "model_count": len(models), "models": models[:20]}
+    except Exception as exc:
+        return {"reachable": False, "error": str(exc)}
+
+
+# -----------------------------------------------------------------------
+# Budget settings
+# -----------------------------------------------------------------------
+
+class BudgetRequest(BaseModel):
+    max_cost_usd_per_day: Optional[float] = None
+    max_tokens_per_day: Optional[int] = None
+
+
+@router.post("/settings/budget")
+async def update_budget(body: BudgetRequest, request: Request) -> dict:
+    """Update global budget caps in budget.yaml and apply to the running BudgetManager."""
+    budget = request.app.state.budget
+
+    config_path = Path("/app/config/budget.yaml")
+    if not config_path.exists():
+        config_path = Path("config/budget.yaml")
+
+    try:
+        if config_path.exists():
+            with open(config_path, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+        else:
+            cfg = {}
+
+        global_cfg = cfg.setdefault("global", {})
+        if body.max_cost_usd_per_day is not None:
+            global_cfg["max_cost_usd_per_day"] = body.max_cost_usd_per_day
+            budget._max_cost_day = body.max_cost_usd_per_day
+        if body.max_tokens_per_day is not None:
+            global_cfg["max_tokens_per_day"] = body.max_tokens_per_day
+            budget._max_tokens_day = body.max_tokens_per_day
+
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+
+        return {"status": "saved", "global": global_cfg}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

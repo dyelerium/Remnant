@@ -471,7 +471,7 @@
         <div class="settings-nav-item" :class="{ active: settingsTab === 'api' }" @click="settingsTab = 'api'">
           <span>🔑</span> API Keys
         </div>
-        <div class="settings-nav-item" :class="{ active: settingsTab === 'models' }" @click="settingsTab = 'models'; loadModels()">
+        <div class="settings-nav-item" :class="{ active: settingsTab === 'models' }" @click="settingsTab = 'models'; loadModels(); loadCostBreakdown()">
           <span>🤖</span> Models
         </div>
         <div class="settings-nav-item" :class="{ active: settingsTab === 'connectors' }" @click="settingsTab = 'connectors'; loadConnectors()">
@@ -509,32 +509,210 @@
               </div>
             </div>
           </template>
+
+          <!-- Ollama section -->
+          <div style="border-top:1px solid var(--border);margin-top:20px;padding-top:16px">
+            <h4 style="font-size:13px;font-weight:600;margin-bottom:4px;color:var(--text)">Ollama (Local / Remote)</h4>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Connect to a local or remote Ollama instance for free local inference.</p>
+
+            <div class="form-group">
+              <label class="form-label">Ollama URL</label>
+              <div style="display:flex;gap:8px">
+                <input class="form-input" type="text"
+                       placeholder="http://localhost:11434"
+                       x-model="ollamaUrl" style="flex:1" />
+                <button class="btn-secondary" @click="testOllama()"
+                        :disabled="ollamaTesting" style="white-space:nowrap">
+                  <span x-show="ollamaTesting" class="spinner" style="width:12px;height:12px;border-width:1.5px;margin-right:4px"></span>
+                  Test
+                </button>
+                <button class="btn-primary" @click="saveOllama()" style="white-space:nowrap">Save</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">API Key <span style="color:var(--text-muted)">(optional — for cloud Ollama instances)</span></label>
+              <input class="form-input" type="password" x-model="ollamaApiKey"
+                     placeholder="Leave blank for local" autocomplete="new-password" />
+            </div>
+            <div x-show="ollamaTestResult" style="margin-top:8px;font-size:12px;padding:8px 12px;border-radius:6px;background:var(--bg3);border:1px solid var(--border)">
+              <span x-show="ollamaTestResult?.reachable" style="color:#10b981">
+                ✓ Connected — <span x-text="ollamaTestResult?.model_count"></span> model(s) found:
+                <span x-text="(ollamaTestResult?.models || []).join(', ')"></span>
+              </span>
+              <span x-show="!ollamaTestResult?.reachable" style="color:var(--err)" x-text="'✗ ' + (ollamaTestResult?.error || 'Not reachable')"></span>
+            </div>
+          </div>
         </div>
 
         <!-- Models -->
         <div x-show="settingsTab === 'models'" style="display:none">
           <h3 class="settings-section-title">Model Configuration</h3>
-          <div class="form-group">
-            <label class="form-label">Default Chat Model</label>
-            <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px">Currently: <strong x-text="settingsData.default_model || 'not set'"></strong></p>
-            <div class="model-list">
-              <template x-for="m in availableModels" :key="m.key">
-                <div class="model-item" :class="{ selected: settingsData.default_model === m.key }"
-                     @click="setDefaultModel(m.key)">
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <div class="model-radio" :class="{ active: settingsData.default_model === m.key }"></div>
-                    <div>
-                      <div style="font-size:13px;font-weight:500" x-text="m.model"></div>
-                      <div style="font-size:11px;color:var(--text-muted)" x-text="m.provider"></div>
-                    </div>
-                  </div>
-                  <div style="text-align:right;font-size:11px;color:var(--text-muted)">
-                    <div x-text="m.cost_per_1k_input ? '$' + m.cost_per_1k_input.toFixed(4) + '/1k in' : 'free'"></div>
-                    <div x-show="m.context_window" x-text="(m.context_window/1000).toFixed(0) + 'k ctx'"></div>
-                  </div>
-                </div>
-              </template>
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">
+            Default chat model: <strong x-text="settingsData.default_model || 'not set'"></strong>
+          </p>
+
+          <!-- Provider sub-tabs -->
+          <div style="display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+            <template x-for="tab in modelProviderTabs" :key="tab">
+              <button class="btn-secondary"
+                      :style="modelProviderTab === tab ? 'background:var(--accent);color:#fff;border-color:var(--accent)' : ''"
+                      style="font-size:12px;padding:4px 10px;text-transform:capitalize"
+                      @click="modelProviderTab = tab; modelConfigPanel = null">
+                <span x-text="tab"></span>
+              </button>
+            </template>
+            <button class="btn-secondary" style="font-size:12px;padding:4px 10px;margin-left:auto;display:flex;align-items:center;gap:4px"
+                    @click="refreshProviderModels()" :disabled="modelRefreshing">
+              <span x-show="modelRefreshing" class="spinner" style="width:10px;height:10px;border-width:1.5px"></span>
+              <span>↻ Refresh from API</span>
+            </button>
+          </div>
+
+          <!-- Merge diff banner -->
+          <div x-show="remoteModelDiff.length > 0"
+               style="background:var(--bg3);border:1px solid var(--accent);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;display:flex;align-items:center;gap:10px">
+            <span style="color:var(--accent)" x-text="remoteModelDiff.length + ' new/updated model(s) from API'"></span>
+            <button class="btn-primary" style="font-size:11px;padding:3px 10px;margin-left:auto"
+                    @click="mergeRemoteModels()">Merge &amp; Save</button>
+            <button class="btn-ghost" style="font-size:11px" @click="remoteModelDiff = []">Dismiss</button>
+          </div>
+
+          <!-- Model table for active provider tab -->
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead>
+                <tr style="color:var(--text-muted);border-bottom:1px solid var(--border)">
+                  <th style="text-align:left;padding:6px 4px;font-weight:500">Model</th>
+                  <th style="text-align:right;padding:6px 4px;font-weight:500">Context</th>
+                  <th style="text-align:right;padding:6px 4px;font-weight:500">$/1K in</th>
+                  <th style="text-align:right;padding:6px 4px;font-weight:500">$/1K out</th>
+                  <th style="text-align:center;padding:6px 4px;font-weight:500">Vision</th>
+                  <th style="text-align:center;padding:6px 4px;font-weight:500">Default?</th>
+                  <th style="text-align:center;padding:6px 4px;font-weight:500"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="m in modelsForTab" :key="m.key">
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <td style="padding:7px 4px">
+                      <div style="font-weight:500" x-text="m.model"></div>
+                    </td>
+                    <td style="padding:7px 4px;text-align:right;color:var(--text-dim)"
+                        x-text="(m.context_window/1000).toFixed(0) + 'k'"></td>
+                    <td style="padding:7px 4px;text-align:right;color:var(--text-dim)"
+                        x-text="m.cost_per_1k_input ? '$' + m.cost_per_1k_input.toFixed(5) : 'free'"></td>
+                    <td style="padding:7px 4px;text-align:right;color:var(--text-dim)"
+                        x-text="m.cost_per_1k_output ? '$' + m.cost_per_1k_output.toFixed(5) : 'free'"></td>
+                    <td style="padding:7px 4px;text-align:center" x-text="m.has_vision ? '✓' : '—'"></td>
+                    <td style="padding:7px 4px;text-align:center">
+                      <button x-show="settingsData.default_model !== m.key"
+                              class="btn-ghost" style="font-size:11px;padding:2px 8px"
+                              @click="setDefaultModel(m.key)">Set default</button>
+                      <span x-show="settingsData.default_model === m.key"
+                            style="color:#10b981;font-size:11px">✓ Default</span>
+                    </td>
+                    <td style="padding:7px 4px;text-align:center">
+                      <button class="btn-ghost" style="font-size:11px;padding:2px 6px"
+                              @click="toggleModelConfig(m.key)">⚙</button>
+                    </td>
+                  </tr>
+                  <!-- Inline config panel -->
+                  <tr x-show="modelConfigPanel === m.key">
+                    <td colspan="7" style="padding:0">
+                      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:14px;margin:4px 0 8px">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                          <div class="form-group" style="margin:0">
+                            <label class="form-label" style="font-size:11px">Max completion tokens</label>
+                            <input class="form-input" type="number" style="font-size:12px"
+                                   :value="modelConfigForm[m.key]?.max_completion_tokens ?? m.max_completion_tokens ?? 4096"
+                                   @input="setModelConfigField(m.key, 'max_completion_tokens', +$event.target.value)" />
+                          </div>
+                          <div class="form-group" style="margin:0">
+                            <label class="form-label" style="font-size:11px">Temperature</label>
+                            <input class="form-input" type="number" min="0" max="2" step="0.05" style="font-size:12px"
+                                   :value="modelConfigForm[m.key]?.temperature ?? m.temperature ?? 0.7"
+                                   @input="setModelConfigField(m.key, 'temperature', +$event.target.value)" />
+                          </div>
+                          <div class="form-group" style="margin:0">
+                            <label class="form-label" style="font-size:11px">
+                              Chat history space: <span x-text="Math.round((modelConfigForm[m.key]?.history_fraction ?? m.history_fraction ?? 0.7) * 100) + '%'"></span>
+                            </label>
+                            <input type="range" min="0.1" max="0.9" step="0.05" style="width:100%"
+                                   :value="modelConfigForm[m.key]?.history_fraction ?? m.history_fraction ?? 0.7"
+                                   @input="setModelConfigField(m.key, 'history_fraction', +$event.target.value)" />
+                          </div>
+                          <div class="form-group" style="margin:0">
+                            <label class="form-label" style="font-size:11px">Vision support</label>
+                            <label style="display:flex;align-items:center;gap:6px;margin-top:6px">
+                              <input type="checkbox"
+                                     :checked="modelConfigForm[m.key]?.has_vision ?? m.has_vision ?? false"
+                                     @change="setModelConfigField(m.key, 'has_vision', $event.target.checked)" />
+                              <span style="font-size:12px">Supports image input</span>
+                            </label>
+                          </div>
+                          <div class="form-group" style="margin:0">
+                            <label class="form-label" style="font-size:11px">Custom $/1K input</label>
+                            <input class="form-input" type="number" min="0" step="0.00001" style="font-size:12px"
+                                   :value="modelConfigForm[m.key]?.cost_per_1k_input ?? m.cost_per_1k_input ?? 0"
+                                   @input="setModelConfigField(m.key, 'cost_per_1k_input', +$event.target.value)" />
+                          </div>
+                          <div class="form-group" style="margin:0">
+                            <label class="form-label" style="font-size:11px">Custom $/1K output</label>
+                            <input class="form-input" type="number" min="0" step="0.00001" style="font-size:12px"
+                                   :value="modelConfigForm[m.key]?.cost_per_1k_output ?? m.cost_per_1k_output ?? 0"
+                                   @input="setModelConfigField(m.key, 'cost_per_1k_output', +$event.target.value)" />
+                          </div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center">
+                          <label style="display:flex;align-items:center;gap:6px;font-size:12px">
+                            <input type="checkbox"
+                                   :checked="modelConfigForm[m.key]?.set_as_default ?? false"
+                                   @change="setModelConfigField(m.key, 'set_as_default', $event.target.checked)" />
+                            Set as chat default
+                          </label>
+                          <button class="btn-primary" style="font-size:12px;padding:4px 12px;margin-left:auto"
+                                  @click="saveModelConfig(m)">Save settings</button>
+                          <button class="btn-ghost" style="font-size:12px"
+                                  @click="modelConfigPanel = null">Cancel</button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <div class="empty-state" x-show="modelsForTab.length === 0">
+              No models configured for this provider.
             </div>
+          </div>
+
+          <!-- Cost breakdown table -->
+          <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px">
+            <div style="display:flex;align-items:center;margin-bottom:8px">
+              <h4 style="font-size:13px;font-weight:600;color:var(--text);margin:0">Cost Breakdown (Today)</h4>
+              <button class="btn-ghost" style="font-size:11px;margin-left:auto" @click="loadCostBreakdown()">↻ Refresh</button>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px">
+              <thead>
+                <tr style="color:var(--text-muted);border-bottom:1px solid var(--border)">
+                  <th style="text-align:left;padding:5px 4px;font-weight:500">Provider/Model</th>
+                  <th style="text-align:right;padding:5px 4px;font-weight:500">Tokens</th>
+                  <th style="text-align:right;padding:5px 4px;font-weight:500">Est. Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="row in costBreakdown" :key="row.provider + '/' + row.model">
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <td style="padding:5px 4px;color:var(--text-dim)" x-text="row.provider + '/' + row.model"></td>
+                    <td style="padding:5px 4px;text-align:right" x-text="(row.tokens_today || 0).toLocaleString()"></td>
+                    <td style="padding:5px 4px;text-align:right" x-text="'$' + (row.cost_usd_today || 0).toFixed(6)"></td>
+                  </tr>
+                </template>
+                <tr x-show="costBreakdown.length === 0">
+                  <td colspan="3" style="padding:10px 4px;text-align:center;color:var(--text-muted)">No usage data yet</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 

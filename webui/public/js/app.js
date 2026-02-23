@@ -142,6 +142,20 @@ document.addEventListener('alpine:init', () => {
     settingsEditingFile: null,
     settingsEditingContent: '',
 
+    /* --- Ollama --- */
+    ollamaUrl: '',
+    ollamaApiKey: '',
+    ollamaTesting: false,
+    ollamaTestResult: null,
+
+    /* --- Models tab redesign --- */
+    modelProviderTab: 'openrouter',
+    modelConfigPanel: null,   // key of model whose config panel is open
+    modelConfigForm: {},      // { [model_key]: { field: value, ... } }
+    modelRefreshing: false,
+    remoteModelDiff: [],      // new/updated models from remote fetch
+    costBreakdown: [],
+
     /* --- WhatsApp QR --- */
     waStatus: null,       // { sidecar_reachable, ready, sidecar_url }
     waQrData: null,       // base64 data URL of QR image
@@ -179,6 +193,15 @@ document.addEventListener('alpine:init', () => {
 
     chatsForProject(projectId) {
       return this.chats.filter(c => (c.projectId || null) === projectId);
+    },
+
+    get modelProviderTabs() {
+      const providers = [...new Set(this.availableModels.map(m => m.provider))];
+      return providers.length > 0 ? providers : ['openrouter', 'anthropic', 'openai', 'ollama'];
+    },
+
+    get modelsForTab() {
+      return this.availableModels.filter(m => m.provider === this.modelProviderTab);
     },
 
     /* ================================================================
@@ -750,7 +773,13 @@ document.addEventListener('alpine:init', () => {
     async loadSettingsData() {
       try {
         const resp = await fetch('/api/settings');
-        if (resp.ok) this.settingsData = await resp.json();
+        if (resp.ok) {
+          this.settingsData = await resp.json();
+          // Pre-populate Ollama URL from settings
+          if (this.settingsData.ollama?.base_url && !this.ollamaUrl) {
+            this.ollamaUrl = this.settingsData.ollama.base_url;
+          }
+        }
       } catch (_) {}
     },
 
@@ -772,6 +801,10 @@ document.addEventListener('alpine:init', () => {
         if (resp.ok) {
           const data = await resp.json();
           this.availableModels = data.models || [];
+          // Default to first available provider tab
+          if (this.availableModels.length > 0) {
+            this.modelProviderTab = this.availableModels[0].provider;
+          }
         }
       } catch (_) {}
     },
@@ -786,6 +819,137 @@ document.addEventListener('alpine:init', () => {
         if (resp.ok) {
           this.settingsData = { ...this.settingsData, default_model: key };
         }
+      } catch (_) {}
+    },
+
+    toggleModelConfig(key) {
+      this.modelConfigPanel = this.modelConfigPanel === key ? null : key;
+    },
+
+    setModelConfigField(modelKey, field, value) {
+      if (!this.modelConfigForm[modelKey]) {
+        this.modelConfigForm[modelKey] = {};
+      }
+      this.modelConfigForm[modelKey][field] = value;
+    },
+
+    async saveModelConfig(m) {
+      const overrides = this.modelConfigForm[m.key] || {};
+      const body = {
+        provider: m.provider,
+        model: m.model,
+        context_window: m.context_window,
+        cost_per_1k_input: overrides.cost_per_1k_input ?? m.cost_per_1k_input ?? 0,
+        cost_per_1k_output: overrides.cost_per_1k_output ?? m.cost_per_1k_output ?? 0,
+        has_vision: overrides.has_vision ?? m.has_vision ?? false,
+        max_completion_tokens: overrides.max_completion_tokens ?? m.max_completion_tokens ?? 4096,
+        history_fraction: overrides.history_fraction ?? m.history_fraction ?? 0.7,
+        temperature: overrides.temperature ?? m.temperature ?? 0.7,
+        use_cases: m.use_cases || ['chat'],
+        set_as_default_for_chat: overrides.set_as_default ?? false,
+      };
+      try {
+        const resp = await fetch('/api/llm/providers/model-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (resp.ok) {
+          this.modelConfigPanel = null;
+          await this.loadModels();
+          await this.loadSettingsData();
+        }
+      } catch (_) {}
+    },
+
+    async refreshProviderModels() {
+      this.modelRefreshing = true;
+      this.remoteModelDiff = [];
+      try {
+        const resp = await fetch(`/api/llm/providers/remote/${this.modelProviderTab}`);
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          alert('Refresh failed: ' + (err.detail || resp.statusText));
+          return;
+        }
+        const data = await resp.json();
+        const remote = data.models || [];
+        const existingKeys = new Set(this.availableModels.map(m => m.model));
+        this.remoteModelDiff = remote.filter(rm => !existingKeys.has(rm.id));
+      } catch (e) {
+        alert('Refresh error: ' + e.message);
+      } finally {
+        this.modelRefreshing = false;
+      }
+    },
+
+    async mergeRemoteModels() {
+      for (const rm of this.remoteModelDiff) {
+        const body = {
+          provider: this.modelProviderTab,
+          model: rm.id,
+          context_window: rm.context_length || 128000,
+          cost_per_1k_input: rm.cost_per_1k_input || 0,
+          cost_per_1k_output: rm.cost_per_1k_output || 0,
+          has_vision: rm.has_vision || false,
+          max_completion_tokens: rm.max_completion_tokens || 4096,
+          history_fraction: 0.7,
+          temperature: 0.7,
+          use_cases: ['chat'],
+          set_as_default_for_chat: false,
+        };
+        try {
+          await fetch('/api/llm/providers/model-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+        } catch (_) {}
+      }
+      this.remoteModelDiff = [];
+      await this.loadModels();
+    },
+
+    async loadCostBreakdown() {
+      try {
+        const resp = await fetch('/api/llm/costs/breakdown');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.costBreakdown = data.breakdown || [];
+        }
+      } catch (_) {}
+    },
+
+    /* --- Ollama --- */
+    async testOllama() {
+      this.ollamaTesting = true;
+      this.ollamaTestResult = null;
+      try {
+        // Save URL first so the test uses it
+        if (this.ollamaUrl) {
+          await fetch('/api/settings/ollama', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: this.ollamaUrl, api_key: this.ollamaApiKey }),
+          });
+        }
+        const resp = await fetch('/api/settings/ollama/test');
+        if (resp.ok) this.ollamaTestResult = await resp.json();
+      } catch (e) {
+        this.ollamaTestResult = { reachable: false, error: e.message };
+      } finally {
+        this.ollamaTesting = false;
+      }
+    },
+
+    async saveOllama() {
+      try {
+        const resp = await fetch('/api/settings/ollama', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: this.ollamaUrl, api_key: this.ollamaApiKey }),
+        });
+        if (resp.ok) await this.loadSettingsData();
       } catch (_) {}
     },
 

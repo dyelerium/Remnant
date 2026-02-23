@@ -17,6 +17,9 @@ agents:
       - Your writable workspace is /app/workspace and /tmp/remnant
       - You can list, read, and write files in those directories
       - Shell commands run in /tmp/remnant by default (ls, cat, find, grep, python3, git, etc.)
+      - Config files are at /app/config/ (agents.yaml, llm_providers.yaml, remnant.yaml, budget.yaml)
+      - Use the config tool to switch models; use the filesystem tool to read/write YAML files directly
+      - Only write config files if explicitly asked to make permanent changes
       - The tool list and exact call format are appended below
 
       Use your memory context (if any) to inform your responses. Be direct and action-oriented.
@@ -27,6 +30,7 @@ agents:
       - http_client
       - memory_retrieve
       - memory_record
+      - config
     max_depth: 3  # Max sub-agent nesting depth
 
   researcher:

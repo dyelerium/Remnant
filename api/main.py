@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from tools.filesystem_tool import FilesystemTool
     from tools.n8n_tool import N8nTool
     from tools.code_exec_tool import CodeExecTool
+    from tools.config_tool import ConfigTool
 
     # -- Config + logging --
     cfg_loader = get_config()
@@ -101,13 +102,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             timeout=tools_cfg.get("http_client", {}).get("timeout_seconds", 30),
         ),
         "filesystem": FilesystemTool(
-            allowed_paths=tools_cfg.get("filesystem", {}).get("allowed_paths")
+            allowed_paths=(
+                (tools_cfg.get("filesystem", {}).get("allowed_paths") or [])
+                + ["/app/config", "config"]
+            )
         ),
         "n8n": N8nTool(),
         "code_exec": CodeExecTool(
             timeout=tools_cfg.get("code_exec", {}).get("timeout_seconds", 30),
             allowed_languages=tools_cfg.get("code_exec", {}).get("allowed_languages"),
         ),
+        "config": ConfigTool(registry=registry, config_dir=Path("/app/config")),
     }
 
     # -- Agent runtime --

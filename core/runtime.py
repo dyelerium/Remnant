@@ -81,6 +81,16 @@ class AgentRuntime:
         )
         system_prompt = agent_cfg.get("system_prompt", "You are a helpful AI assistant.")
 
+        # Inject current model identity so the agent knows what LLM it is using
+        try:
+            _spec = self.llm._registry.resolve("chat")
+            system_prompt += (
+                f"\n[Current model: {_spec.provider}/{_spec.model}"
+                f" | context: {_spec.context_window} tokens]"
+            )
+        except Exception:
+            pass
+
         # Inject available tool schemas so the LLM knows what to call and how
         if self._tool_registry:
             system_prompt = system_prompt + "\n\n" + self._build_tool_docs()
