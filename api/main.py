@@ -143,10 +143,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     import os as _os
     import asyncio as _asyncio
     from channels.telegram_bot import TelegramBot
+    from api.routes.chat import broadcast as _broadcast
     _telegram_token = _os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     telegram_bot = None
     if _telegram_token:
-        telegram_bot = TelegramBot(_telegram_token, orchestrator, retriever)
+        telegram_bot = TelegramBot(_telegram_token, orchestrator, retriever, broadcast_fn=_broadcast)
         telegram_bot._task = _asyncio.create_task(telegram_bot.start())
         logger.info("[TELEGRAM] Bot started")
     else:
@@ -170,7 +171,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.tool_registry = tool_registry
     app.state.skill_registry = skill_registry
     app.state.project_manager = project_manager
-    from api.routes.chat import broadcast as _broadcast
     app.state.orchestrator = orchestrator
     app.state.agent_graph = agent_graph
     app.state.lane_manager = lane_manager

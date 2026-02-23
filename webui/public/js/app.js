@@ -303,6 +303,11 @@ document.addEventListener('alpine:init', () => {
         this.handleWhatsAppPush(msg);
         return;
       }
+      // Server-pushed Telegram conversation
+      if (msg.type === 'tg_message') {
+        this.handleTelegramPush(msg);
+        return;
+      }
 
       const chat = this.activeChat;
       if (!chat) return;
@@ -377,6 +382,47 @@ document.addEventListener('alpine:init', () => {
         });
       } else {
         // Push into the already-proxied chat object in this.chats
+        for (const m of newMessages) {
+          this.chats[existing].messages.push(m);
+        }
+      }
+
+      if (!this.isStreaming) {
+        const targetChat = existing === -1 ? this.chats[0] : this.chats[existing];
+        this.activeChatId = targetChat.id;
+        this.activeView = null;
+        this.$nextTick(() => this.scrollToBottom());
+      }
+    },
+
+    handleTelegramPush(msg) {
+      const sessionId = msg.session_id;
+      const sender = msg.sender || msg.chat_id || 'unknown';
+
+      const newMessages = [];
+      if (msg.user_message) {
+        newMessages.push({ id: uid(), role: 'user', text: msg.user_message, ts: new Date().toISOString() });
+      }
+      if (msg.response) {
+        newMessages.push({
+          id: uid(), role: 'agent', raw: msg.response,
+          parts: parseAgentOutput(msg.response),
+          streaming: false, stepOpen: true, ts: new Date().toISOString(),
+        });
+      }
+
+      const existing = this.chats.findIndex(c => c.sessionId === sessionId);
+      if (existing === -1) {
+        this.chats.unshift({
+          id: uid(),
+          title: `Telegram: ${sender}`,
+          projectId: null,
+          sessionId,
+          messages: newMessages,
+          ts: new Date().toISOString(),
+          channel: 'telegram',
+        });
+      } else {
         for (const m of newMessages) {
           this.chats[existing].messages.push(m);
         }

@@ -16,10 +16,11 @@ class TelegramBot:
 
     name = "telegram"
 
-    def __init__(self, bot_token: str, orchestrator, retriever) -> None:
+    def __init__(self, bot_token: str, orchestrator, retriever, broadcast_fn=None) -> None:
         self._token = bot_token
         self._orchestrator = orchestrator
         self._retriever = retriever
+        self._broadcast_fn = broadcast_fn
         self._dp = None
         self._bot = None
         self._task: Optional[asyncio.Task] = None  # reference to polling task
@@ -67,6 +68,21 @@ class TelegramBot:
                 # Telegram max message length is 4096 chars
                 for i in range(0, len(response_text), 4000):
                     await message.answer(response_text[i:i+4000])
+
+            # Push conversation to open web UI tabs
+            if self._broadcast_fn:
+                try:
+                    username = message.from_user.username or message.from_user.first_name or chat_id
+                    await self._broadcast_fn({
+                        "type": "tg_message",
+                        "session_id": f"tg-{chat_id}",
+                        "sender": username,
+                        "chat_id": chat_id,
+                        "user_message": text,
+                        "response": response_text,
+                    })
+                except Exception as _exc:
+                    logger.warning("[TELEGRAM] Broadcast failed: %s", _exc)
 
         logger.info("[TELEGRAM] Bot started")
         await self._dp.start_polling(self._bot)

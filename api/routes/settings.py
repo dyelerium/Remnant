@@ -170,6 +170,7 @@ async def set_connectors(body: ConnectorRequest, request: Request) -> dict:
                 body.telegram_bot_token.strip(),
                 request.app.state.orchestrator,
                 request.app.state.retriever,
+                broadcast_fn=getattr(request.app.state, "broadcast", None),
             )
             new_bot._task = asyncio.create_task(new_bot.start())
             request.app.state.telegram_bot = new_bot
