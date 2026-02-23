@@ -1,5 +1,5 @@
 defaults:
-  chat: ollama/qwen3:4b
+  chat: ollama/kimi-k2.5:cloud
   compaction: ollama/qwen3:4b
   curator: ollama/qwen3:4b
   embedding: sentence-transformers/all-MiniLM-L6-v2
