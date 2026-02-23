@@ -148,6 +148,8 @@ document.addEventListener('alpine:init', () => {
     waQrError: null,
     waQrLoading: false,
     waQrPollTimer: null,  // setInterval handle for auto-refresh
+    waStarting: false,
+    waStartError: null,
 
     /* --- Wizard --- */
     wizardOpen: false,
@@ -845,6 +847,45 @@ document.addEventListener('alpine:init', () => {
           this.waQrData = null;
           this.waQrError = null;
         }
+      } catch (_) {}
+    },
+
+    async waStartBridge() {
+      this.waStarting = true;
+      this.waStartError = null;
+      try {
+        const resp = await fetch('/api/whatsapp/start', { method: 'POST' });
+        const data = await resp.json();
+        if (!resp.ok) {
+          this.waStartError = data.detail || 'Failed to start bridge';
+          return;
+        }
+        // Poll until sidecar is reachable (up to 60s)
+        for (let i = 0; i < 30; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          await this.waCheckStatus();
+          if (this.waStatus?.sidecar_reachable) {
+            // Auto-fetch QR once reachable
+            await this.waFetchQr();
+            return;
+          }
+        }
+        this.waStartError = 'Bridge started but not reachable yet — click "Check connection" in a moment.';
+      } catch (e) {
+        this.waStartError = 'Error: ' + e.message;
+      } finally {
+        this.waStarting = false;
+      }
+    },
+
+    async waStopBridge() {
+      if (!confirm('Stop the WhatsApp bridge container?')) return;
+      try {
+        await fetch('/api/whatsapp/stop', { method: 'POST' });
+        this.waStopPolling();
+        this.waQrData = null;
+        this.waStatus = null;
+        await this.waCheckStatus();
       } catch (_) {}
     },
 

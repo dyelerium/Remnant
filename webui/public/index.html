@@ -654,21 +654,42 @@
               </template>
 
               <!-- Action buttons row -->
-              <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+              <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
                 <button class="btn-secondary" @click="waCheckStatus()"
                         :disabled="waQrLoading"
                         style="display:flex;align-items:center;gap:6px">
                   <span x-show="waQrLoading" class="spinner" style="width:12px;height:12px;border-width:1.5px"></span>
                   Check connection
                 </button>
-                <!-- Show QR button only when reachable but not authenticated yet -->
+
+                <!-- Start bridge — shown when sidecar is offline -->
+                <template x-if="!waStatus || !waStatus.sidecar_reachable">
+                  <button class="btn-primary" style="font-size:13px;display:flex;align-items:center;gap:6px"
+                          @click="waStartBridge()" :disabled="waStarting">
+                    <span x-show="waStarting" class="spinner" style="width:12px;height:12px;border-width:1.5px"></span>
+                    🚀 Start WhatsApp bridge
+                  </button>
+                </template>
+
+                <!-- Get QR — shown when sidecar reachable but not authenticated -->
                 <template x-if="waStatus && waStatus.sidecar_reachable && !waStatus.ready">
                   <button class="btn-primary" style="font-size:13px"
                           @click="waFetchQr()">
                     🔗 Get QR code
                   </button>
                 </template>
+
+                <!-- Stop bridge — shown when connected -->
+                <template x-if="waStatus && waStatus.sidecar_reachable && waStatus.ready">
+                  <button class="btn-secondary" style="font-size:13px"
+                          @click="waStopBridge()">
+                    ⏹ Stop bridge
+                  </button>
+                </template>
               </div>
+
+              <!-- Start error -->
+              <div x-show="waStartError" style="font-size:12px;color:var(--err);margin-top:8px" x-text="waStartError"></div>
 
             </div>
           </div>

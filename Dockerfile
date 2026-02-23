@@ -22,8 +22,11 @@ COPY . .
 # Create required directories
 RUN mkdir -p memory/projects logs workspace /tmp/remnant
 
-# Non-root user
-RUN useradd -m -u 1000 remnant && chown -R remnant:remnant /app
+# Non-root user — docker group GID 107 matches host socket ownership
+RUN useradd -m -u 1000 remnant \
+    && groupadd -g 107 docker \
+    && usermod -aG docker remnant \
+    && chown -R remnant:remnant /app
 USER remnant
 
 EXPOSE 8000

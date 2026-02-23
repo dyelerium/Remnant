@@ -43,6 +43,9 @@ apscheduler>=3.10.0
 cryptography>=43.0.0
 python-jose[cryptography]>=3.3.0
 
+# Docker SDK (for managing sidecar containers via socket)
+docker>=7.0.0
+
 # Process management / utilities
 psutil>=6.1.0
 watchdog>=6.0.0
