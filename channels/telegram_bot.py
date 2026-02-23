@@ -1,6 +1,7 @@
 """Telegram bot channel — aiogram-based polling."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -21,12 +22,12 @@ class TelegramBot:
         self._retriever = retriever
         self._dp = None
         self._bot = None
+        self._task: Optional[asyncio.Task] = None  # reference to polling task
 
     async def start(self) -> None:
         """Start the Telegram bot polling loop (as background task)."""
         try:
             from aiogram import Bot, Dispatcher
-            from aiogram.filters import Command
             from aiogram import types
         except ImportError:
             logger.warning("[TELEGRAM] aiogram not installed — Telegram channel disabled")
@@ -65,10 +66,27 @@ class TelegramBot:
         await self._dp.start_polling(self._bot)
 
     async def stop(self) -> None:
-        if self._dp:
-            await self._dp.stop_polling()
-        if self._bot:
-            await self._bot.session.close()
+        """Stop polling and close session. Cancels the underlying task if stored."""
+        # Cancel the asyncio task first (fast path)
+        if self._task and not self._task.done():
+            self._task.cancel()
+            try:
+                await asyncio.wait_for(asyncio.shield(self._task), timeout=3.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                pass
+
+        # Also gracefully stop the dispatcher
+        try:
+            if self._dp:
+                await asyncio.wait_for(self._dp.stop_polling(), timeout=5.0)
+        except Exception:
+            pass
+
+        try:
+            if self._bot:
+                await self._bot.session.close()
+        except Exception:
+            pass
 
     async def send_message(
         self,

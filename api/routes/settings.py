@@ -163,6 +163,7 @@ async def set_connectors(body: ConnectorRequest, request: Request) -> dict:
                 await old_bot.stop()
             except Exception:
                 pass
+            request.app.state.telegram_bot = None
         if body.telegram_bot_token.strip():
             from channels.telegram_bot import TelegramBot
             new_bot = TelegramBot(
@@ -170,8 +171,8 @@ async def set_connectors(body: ConnectorRequest, request: Request) -> dict:
                 request.app.state.orchestrator,
                 request.app.state.retriever,
             )
+            new_bot._task = asyncio.create_task(new_bot.start())
             request.app.state.telegram_bot = new_bot
-            asyncio.create_task(new_bot.start())
             logger.info("[TELEGRAM] Bot (re)started with new token")
 
     if body.whatsapp_sidecar_url is not None:

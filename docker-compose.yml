@@ -24,18 +24,22 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - REMNANT_MASTER_KEY=${REMNANT_MASTER_KEY}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
+      - REMNANT_MASTER_KEY=${REMNANT_MASTER_KEY:-}
       - REMNANT_ENV=production
-      - WHATSAPP_SIDECAR_URL=http://remnant-whatsapp:3000
+      - WHATSAPP_SIDECAR_URL=${WHATSAPP_SIDECAR_URL:-http://remnant-whatsapp:3000}
       - COMPOSE_PROJECT_DIR=/app/project
     volumes:
+      - ./.env:/app/.env          # persists runtime settings (API keys, URLs) across rebuilds
       - ./memory:/app/memory
       - ./logs:/app/logs
       - ./config:/app/config
