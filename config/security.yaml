@@ -62,6 +62,9 @@ tool_policies:
     - memory_record
     - web_search
     - http_client
+    - shell
+    - filesystem
+    - code_exec
 
   # Per-project overrides
   project_overrides: {}

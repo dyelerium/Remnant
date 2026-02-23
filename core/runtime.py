@@ -4,7 +4,9 @@ Agent runtime — RECALL → PLAN → LLM → TOOLS → RECORD → CURATE loop p
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
 from typing import AsyncIterator, Optional
 
 from .agent_graph import AgentNode, NodeStatus
@@ -72,12 +74,16 @@ class AgentRuntime:
         safe_chunks = self.security.sanitise_memory(memory_chunks)
         memory_context = self.retriever.format_for_prompt(safe_chunks)
 
-        # -- 2. Build messages with system prompt + memory context --
+        # -- 2. Build messages with system prompt + tool docs + memory context --
         agent_cfg = self._agents_cfg.get(
             agent_node.agent_type,
             self._agents_cfg.get("default", {}),
         )
         system_prompt = agent_cfg.get("system_prompt", "You are a helpful AI assistant.")
+
+        # Inject available tool schemas so the LLM knows what to call and how
+        if self._tool_registry:
+            system_prompt = system_prompt + "\n\n" + self._build_tool_docs()
 
         if memory_context:
             system_prompt = f"{system_prompt}\n\n{memory_context}"
@@ -90,39 +96,82 @@ class AgentRuntime:
             {"role": "user", "content": safe_message},
         ]
 
-        # -- 3. LLM (streaming) --
+        # -- 3. LLM → TOOLS agentic loop --
+        #
+        # Strategy: buffer each LLM response rather than streaming it.
+        # If the response contains tool calls, execute them, inject results,
+        # and call the LLM again.  Only the FINAL response (no tool calls) is
+        # streamed to the user — this prevents the LLM from writing made-up
+        # tool results mid-stream.
         full_response = ""
-        yield "[GEN] "
-        try:
-            async for chunk in self.llm.chat_stream(
-                messages=messages,
-                use_case="chat",
-                project_id=project_id,
-            ):
-                full_response += chunk
-                yield chunk
-        except Exception as exc:
-            logger.error("[RUNTIME] LLM stream error: %s", exc)
-            yield f"\n[Error: {exc}]"
-            agent_node.status = NodeStatus.FAILED
-            return
+        all_tool_results: list[dict] = []
 
-        yield "\n"
+        for _round in range(self._max_tool_rounds + 1):
+            # Buffer this LLM call
+            buffered_parts: list[str] = []
+            try:
+                async for chunk in self.llm.chat_stream(
+                    messages=messages,
+                    use_case="chat",
+                    project_id=project_id,
+                ):
+                    buffered_parts.append(chunk)
+            except Exception as exc:
+                logger.error("[RUNTIME] LLM stream error: %s", exc)
+                yield f"[Error: {exc}]"
+                agent_node.status = NodeStatus.FAILED
+                return
 
-        # -- 4. TOOLS (if LLM emitted tool calls) --
-        tool_results = []
-        if self._should_execute_tools(full_response):
-            tool_results = await self._execute_tools(
-                full_response, agent_node, project_id
-            )
+            buffered = "".join(buffered_parts)
+
+            if not self._should_execute_tools(buffered) or _round == self._max_tool_rounds:
+                # No tool calls (or max rounds reached) — stream this as the final response
+                full_response = buffered
+                yield "[GEN] "
+                for chunk in buffered_parts:
+                    yield chunk
+                yield "\n"
+                break
+
+            # Execute tool calls found in this response
+            tool_results = await self._execute_tools(buffered, agent_node, project_id)
+            all_tool_results.extend(tool_results)
+
             if tool_results:
                 yield f"[EXE] {len(tool_results)} tool(s) executed\n"
+                logger.info("[RUNTIME] Round %d: executed %d tool(s)", _round + 1, len(tool_results))
+
+            # Build the clean assistant turn (strip raw tool blocks from display)
+            clean_assistant = self._strip_tool_blocks(buffered).strip()
+            if clean_assistant:
+                messages.append({"role": "assistant", "content": clean_assistant})
+
+            # Inject tool results as the next user turn
+            def _safe_json(v):
+                try:
+                    return json.dumps(v)
+                except (TypeError, ValueError):
+                    return str(v)
+
+            tool_result_text = "\n".join(
+                f"[{r['tool']}]: {_safe_json(r.get('result', r.get('error')))}"
+                for r in tool_results
+            )
+            messages.append({
+                "role": "user",
+                "content": (
+                    f"Tool results:\n{tool_result_text}\n\n"
+                    "Use these real results to answer the user. Do not guess or fabricate data."
+                ),
+            })
+
+            full_response = buffered  # keep last for recording
 
         # -- 5. RECORD --
         record_text = full_response
-        if tool_results:
+        if all_tool_results:
             record_text += "\n\nTool results:\n" + "\n".join(
-                str(r) for r in tool_results
+                str(r) for r in all_tool_results
             )
 
         new_chunk_ids = await self._record(record_text, project_id, source="agent")
@@ -175,9 +224,85 @@ class AgentRuntime:
             logger.warning("[RUNTIME] Memory record failed: %s", exc)
             return []
 
+    def _build_tool_docs(self) -> str:
+        """Build a tool reference block injected into the system prompt."""
+        import json
+        lines = [
+            "## Tools",
+            "When a task requires using a tool, output a fenced block with this exact format:",
+            "```tool",
+            '{"name": "tool_name", "args": {"param": "value"}}',
+            "```",
+            "Execute ONE tool per block. The result will be appended and you can reason over it.",
+            "",
+            "Available tools:",
+        ]
+        for name, tool in self._tool_registry.items():
+            hint = getattr(tool, "schema_hint", {})
+            desc = hint.get("description", getattr(tool, "description", ""))
+            props = hint.get("parameters", {}).get("properties", {})
+            required = hint.get("parameters", {}).get("required", [])
+            params = ", ".join(
+                f"{k}{'*' if k in required else ''}: {v.get('type', '?')}"
+                for k, v in props.items()
+            )
+            lines.append(f"- **{name}**: {desc}")
+            if params:
+                lines.append(f"  args: {{{params}}}  (* = required)")
+        return "\n".join(lines)
+
     def _should_execute_tools(self, response: str) -> bool:
-        """Heuristic: check if LLM response contains tool call markers."""
-        return "```tool" in response.lower() or "<tool>" in response.lower()
+        """Check if LLM response contains tool call markers (any supported format)."""
+        lower = response.lower()
+        return (
+            "```tool" in lower          # JSON block format
+            or "<tool_call>" in lower   # XML function-call format
+            or "<tool>" in lower        # simple XML tag
+        )
+
+    def _strip_tool_blocks(self, response: str) -> str:
+        """Remove tool call blocks (all formats) from text."""
+        # Strip JSON blocks
+        text = re.sub(r"```tool\s*\n.*?\n```", "", response, flags=re.DOTALL)
+        # Strip XML <tool_call> blocks
+        text = re.sub(r"<tool_call>.*?</tool_call>", "", text, flags=re.DOTALL)
+        # Strip simple <tool> blocks
+        text = re.sub(r"<tool>.*?</tool>", "", text, flags=re.DOTALL)
+        return text.strip()
+
+    def _parse_tool_calls(self, response: str) -> list[tuple[str, dict]]:
+        """Extract (tool_name, args) pairs from response, supporting multiple formats."""
+        calls: list[tuple[str, dict]] = []
+
+        # Format 1: ```tool\n{"name": "...", "args": {...}}\n```
+        for match in re.finditer(r"```tool\s*\n(.*?)\n```", response, re.DOTALL):
+            try:
+                obj = json.loads(match.group(1).strip())
+                calls.append((obj.get("name", ""), obj.get("args", {})))
+            except json.JSONDecodeError:
+                pass
+
+        # Format 2: <tool_call><function=name><parameter=k>v</parameter></function></tool_call>
+        for tc in re.finditer(r"<tool_call>(.*?)</tool_call>", response, re.DOTALL):
+            inner = tc.group(1)
+            fn = re.search(r"<function=(\w+)>(.*?)</function>", inner, re.DOTALL)
+            if not fn:
+                continue
+            tool_name = fn.group(1)
+            args: dict = {}
+            for pm in re.finditer(r"<parameter=(\w+)>(.*?)</parameter>", fn.group(2), re.DOTALL):
+                args[pm.group(1)] = pm.group(2).strip()
+            calls.append((tool_name, args))
+
+        # Format 3: <tool>{"name": "...", "args": {...}}</tool>
+        for match in re.finditer(r"<tool>(.*?)</tool>", response, re.DOTALL):
+            try:
+                obj = json.loads(match.group(1).strip())
+                calls.append((obj.get("name", ""), obj.get("args", {})))
+            except json.JSONDecodeError:
+                pass
+
+        return calls
 
     async def _execute_tools(
         self,
@@ -185,38 +310,29 @@ class AgentRuntime:
         agent_node: AgentNode,
         project_id: Optional[str],
     ) -> list[dict]:
-        """Parse and execute tool calls from LLM response."""
-        import json, re
+        """Parse (multi-format) and execute tool calls from LLM response."""
         results = []
 
-        # Extract JSON tool blocks: ```tool\n{...}\n```
-        pattern = re.compile(r"```tool\s*\n(.*?)\n```", re.DOTALL)
-        for match in pattern.finditer(response):
-            raw = match.group(1).strip()
-            try:
-                call = json.loads(raw)
-            except json.JSONDecodeError:
+        for tool_name, tool_args in self._parse_tool_calls(response):
+            if not tool_name:
                 continue
 
-            tool_name = call.get("name", "")
-            tool_args = call.get("args", {})
-
-            # Security policy check
             if not self.security.check_tool_policy(tool_name, project_id):
-                logger.warning(
-                    "[RUNTIME] Tool %r denied by policy (project=%s)", tool_name, project_id
-                )
+                logger.warning("[RUNTIME] Tool %r denied by policy", tool_name)
                 results.append({"tool": tool_name, "error": "denied by policy"})
                 continue
 
             tool = self._tool_registry.get(tool_name)
             if not tool:
-                results.append({"tool": tool_name, "error": "tool not found"})
+                results.append({"tool": tool_name, "error": f"tool '{tool_name}' not found in registry"})
                 continue
 
             try:
                 result = await tool.run(tool_args, agent_node=agent_node)
-                results.append({"tool": tool_name, "result": result})
+                # Convert ToolResult to plain dict for JSON serialisation
+                result_data = result.to_dict() if hasattr(result, "to_dict") else result
+                results.append({"tool": tool_name, "result": result_data})
+                logger.info("[RUNTIME] Tool %r OK: %s", tool_name, str(result_data)[:120])
             except Exception as exc:
                 logger.error("[RUNTIME] Tool %r failed: %s", tool_name, exc)
                 results.append({"tool": tool_name, "error": str(exc)})

@@ -323,44 +323,44 @@ document.addEventListener('alpine:init', () => {
     },
 
     handleWhatsAppPush(msg) {
-      // Find or create a persistent chat for this WhatsApp session
-      const sessionId = msg.session_id;  // "wa-491234567890@c.us"
+      const sessionId = msg.session_id;
       const phone = msg.sender ? msg.sender.split('@')[0] : 'unknown';
 
-      let chat = this.chats.find(c => c.sessionId === sessionId);
-      if (!chat) {
-        chat = {
+      // Build the new messages first (before any Alpine proxy wrapping)
+      const newMessages = [];
+      if (msg.user_message) {
+        newMessages.push({ role: 'user', content: msg.user_message, ts: new Date().toISOString() });
+      }
+      if (msg.response) {
+        newMessages.push({
+          role: 'agent', raw: msg.response,
+          parts: parseAgentOutput(msg.response),
+          streaming: false, ts: new Date().toISOString(),
+        });
+      }
+
+      const existing = this.chats.findIndex(c => c.sessionId === sessionId);
+      if (existing === -1) {
+        // Create chat with messages already populated so Alpine's proxy sees them from the start
+        this.chats.unshift({
           id: uid(),
           title: `WhatsApp: ${phone}`,
           projectId: null,
           sessionId,
-          messages: [],
+          messages: newMessages,
           ts: new Date().toISOString(),
           channel: 'whatsapp',
-        };
-        this.chats.unshift(chat);
+        });
+      } else {
+        // Push into the already-proxied chat object in this.chats
+        for (const m of newMessages) {
+          this.chats[existing].messages.push(m);
+        }
       }
 
-      if (msg.user_message) {
-        chat.messages.push({
-          role: 'user',
-          content: msg.user_message,
-          ts: new Date().toISOString(),
-        });
-      }
-      if (msg.response) {
-        chat.messages.push({
-          role: 'agent',
-          raw: msg.response,
-          parts: parseAgentOutput(msg.response),
-          streaming: false,
-          ts: new Date().toISOString(),
-        });
-      }
-
-      // Switch to this chat only if the user isn't actively streaming another response
       if (!this.isStreaming) {
-        this.activeChatId = chat.id;
+        const targetChat = existing === -1 ? this.chats[0] : this.chats[existing];
+        this.activeChatId = targetChat.id;
         this.activeView = null;
         this.$nextTick(() => this.scrollToBottom());
       }
