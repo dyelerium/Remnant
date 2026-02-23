@@ -329,11 +329,11 @@ document.addEventListener('alpine:init', () => {
       // Build the new messages first (before any Alpine proxy wrapping)
       const newMessages = [];
       if (msg.user_message) {
-        newMessages.push({ role: 'user', content: msg.user_message, ts: new Date().toISOString() });
+        newMessages.push({ id: uid(), role: 'user', text: msg.user_message, ts: new Date().toISOString() });
       }
       if (msg.response) {
         newMessages.push({
-          role: 'agent', raw: msg.response,
+          id: uid(), role: 'agent', raw: msg.response,
           parts: parseAgentOutput(msg.response),
           streaming: false, ts: new Date().toISOString(),
         });
