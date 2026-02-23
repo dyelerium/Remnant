@@ -307,6 +307,7 @@ document.addEventListener('alpine:init', () => {
         }
         this._autoTitle(chat);
         this.scrollToBottom();
+        this.$nextTick(() => document.getElementById('msgInput')?.focus());
         return;
       }
 
@@ -335,7 +336,7 @@ document.addEventListener('alpine:init', () => {
         newMessages.push({
           id: uid(), role: 'agent', raw: msg.response,
           parts: parseAgentOutput(msg.response),
-          streaming: false, ts: new Date().toISOString(),
+          streaming: false, stepOpen: true, ts: new Date().toISOString(),
         });
       }
 
@@ -461,6 +462,7 @@ document.addEventListener('alpine:init', () => {
                 this.currentActivity = '';
                 this._autoTitle(chat);
                 this.scrollToBottom();
+                this.$nextTick(() => document.getElementById('msgInput')?.focus());
               }
             } catch (_) {}
           }
@@ -473,6 +475,7 @@ document.addEventListener('alpine:init', () => {
         agentMsg.streaming = false;
         this.isStreaming = false;
         this.currentActivity = '';
+        this.$nextTick(() => document.getElementById('msgInput')?.focus());
       } finally {
         this.sseAbort = null;
       }
