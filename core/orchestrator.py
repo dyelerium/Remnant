@@ -47,6 +47,8 @@ class Orchestrator:
         session_id: Optional[str] = None,
         channel: str = "websocket",
         memory_context: str = "",
+        cancel_event: Optional[asyncio.Event] = None,
+        images: Optional[list] = None,
     ) -> AsyncIterator[str]:
         """
         Process an incoming message, streaming response chunks.
@@ -92,6 +94,8 @@ class Orchestrator:
             project_id=project_id,
             session_id=session_id,
             channel=channel,
+            cancel_event=cancel_event,
+            images=images,
         ):
             yield chunk
 

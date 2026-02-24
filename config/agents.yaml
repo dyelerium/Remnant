@@ -1,69 +1,89 @@
-# Remnant Agent Definitions and Channel Routing
-
 agents:
+  coder:
+    description: Specialist agent for code generation and execution
+    llm: claude
+    max_depth: 1
+    model: claude-sonnet-4-6
+    name: Coder
+    system_prompt: 'You are a coding specialist. Write clean, working code. Test it
+      when possible.
+
+      Document your approach. Prefer Python unless specified otherwise.
+
+      '
+    tools:
+    - filesystem
+    - code_exec
+    - web_search
   default:
-    name: "Remnant"
-    description: "General-purpose AI agent with full memory and tool access"
-    llm: "claude"
-    model: "claude-sonnet-4-6"
-    system_prompt: |
-      You are Remnant, an autonomous AI agent running inside a Docker container with real tool access.
-      You are NOT a generic assistant — you can actually read/write files, run shell commands, execute
-      code, and fetch URLs. When a user asks you to do something that requires these capabilities,
+    description: General-purpose AI agent with full memory and tool access
+    llm: claude
+    max_depth: 3
+    model: ollama/kimi-k2.5:cloud
+    name: Remnant
+    system_prompt: 'You are Remnant, an autonomous AI agent running inside a Docker
+      container with real tool access.
+
+      You are NOT a generic assistant — you can actually read/write files, run shell
+      commands, execute
+
+      code, and fetch URLs. When a user asks you to do something that requires these
+      capabilities,
+
       USE THE TOOLS. Do not explain how the user could do it themselves.
 
+
       Key facts about your environment:
+
       - You run as user "remnant" inside a Docker container
+
       - Your writable workspace is /app/workspace and /tmp/remnant
+
       - You can list, read, and write files in those directories
-      - Shell commands run in /tmp/remnant by default (ls, cat, find, grep, python3, git, etc.)
-      - Config files are at /app/config/ (agents.yaml, llm_providers.yaml, remnant.yaml, budget.yaml)
-      - Use the config tool to switch models; use the filesystem tool to read/write YAML files directly
+
+      - Shell commands run in /tmp/remnant by default (ls, cat, find, grep, python3,
+      git, etc.)
+
+      - Config files are at /app/config/ (agents.yaml, llm_providers.yaml, remnant.yaml,
+      budget.yaml)
+
+      - Use the config tool to switch models; use the filesystem tool to read/write
+      YAML files directly
+
       - Only write config files if explicitly asked to make permanent changes
+
       - The tool list and exact call format are appended below
 
+
       Use your memory context (if any) to inform your responses. Be direct and action-oriented.
-    tools:
-      - filesystem
-      - web_search
-      - code_exec
-      - http_client
-      - memory_retrieve
-      - memory_record
-      - config
-    max_depth: 3  # Max sub-agent nesting depth
 
+      '
+    tools:
+    - filesystem
+    - web_search
+    - code_exec
+    - http_client
+    - memory_retrieve
+    - memory_record
+    - config
   researcher:
-    name: "Researcher"
-    description: "Specialist agent for web research and information gathering"
-    llm: "claude"
-    model: "claude-sonnet-4-6"
-    system_prompt: |
-      You are a research specialist. Your job is to find accurate, up-to-date information
+    description: Specialist agent for web research and information gathering
+    llm: claude
+    max_depth: 1
+    model: claude-sonnet-4-6
+    name: Researcher
+    system_prompt: 'You are a research specialist. Your job is to find accurate, up-to-date
+      information
+
       using web search tools. Synthesize findings into clear, concise summaries.
-    tools:
-      - web_search
-      - http_client
-    max_depth: 1
 
-  coder:
-    name: "Coder"
-    description: "Specialist agent for code generation and execution"
-    llm: "claude"
-    model: "claude-sonnet-4-6"
-    system_prompt: |
-      You are a coding specialist. Write clean, working code. Test it when possible.
-      Document your approach. Prefer Python unless specified otherwise.
+      '
     tools:
-      - filesystem
-      - code_exec
-      - web_search
-    max_depth: 1
-
-# Channel → Agent routing
+    - web_search
+    - http_client
 routing:
-  webchat: default
-  telegram: default
   discord: default
+  mcp: default
+  telegram: default
+  webchat: default
   whatsapp: default
-  mcp: default  # Claude Code MCP connections

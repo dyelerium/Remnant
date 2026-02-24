@@ -95,7 +95,7 @@ class Planner:
                     SubTask(
                         task_id="t1",
                         description=message,
-                        agent_type="default",
+                        agent_type=self._pick_agent_type(message),
                     )
                 ],
             )
@@ -170,6 +170,18 @@ class Planner:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _pick_agent_type(description: str) -> str:
+        """Keyword-based agent type selection from description text."""
+        d = description.lower()
+        coder_kw = ("code", "script", "implement", "debug", "write function", "refactor", "fix bug")
+        researcher_kw = ("search", "find", "research", "summarize", "look up", "browse", "fetch")
+        if any(k in d for k in coder_kw):
+            return "coder"
+        if any(k in d for k in researcher_kw):
+            return "researcher"
+        return "default"
 
     @staticmethod
     def _parse_tasks(content: str) -> list[SubTask]:

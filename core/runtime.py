@@ -4,7 +4,6 @@ Agent runtime — RECALL → PLAN → LLM → TOOLS → RECORD → CURATE loop p
 from __future__ import annotations
 
 import asyncio
-import collections
 import json
 import logging
 import re
@@ -15,14 +14,8 @@ from .logging_config import set_logging_context
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Per-session conversation history (in-memory, lost on restart)
-# Stores up to _SESSION_MAX_TURNS user+assistant pairs per session_id.
-# ---------------------------------------------------------------------------
-_SESSION_MAX_TURNS = 10   # keep last 10 user+assistant pairs (20 messages)
-_session_histories: dict[str, collections.deque] = collections.defaultdict(
-    lambda: collections.deque(maxlen=_SESSION_MAX_TURNS * 2)
-)
+_SESSION_MAX_MESSAGES = 20   # keep last 20 messages (10 user+assistant pairs)
+_SESSION_TTL = 86400          # 24 hours
 
 
 class AgentRuntime:
@@ -47,6 +40,7 @@ class AgentRuntime:
         curator_agent,
         config: dict,
         tool_registry: Optional[dict] = None,
+        redis_client=None,
     ) -> None:
         self.retriever = memory_retriever
         self.recorder = memory_recorder
@@ -57,6 +51,7 @@ class AgentRuntime:
         self._tool_registry: dict = tool_registry or {}
         self._agents_cfg: dict = config.get("agents", {})
         self._max_tool_rounds = 5
+        self._redis = redis_client
 
     # ------------------------------------------------------------------
     # Streaming run
@@ -69,6 +64,8 @@ class AgentRuntime:
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
         channel: str = "websocket",
+        cancel_event: Optional[asyncio.Event] = None,
+        images: Optional[list] = None,
     ) -> AsyncIterator[str]:
         """Execute one agent loop, yielding response chunks."""
         set_logging_context(
@@ -112,11 +109,29 @@ class AgentRuntime:
         safe_message = self.security.redact_prompt(message)
 
         # Inject recent session history so the agent remembers earlier turns
-        history = list(_session_histories[session_id]) if session_id else []
+        history = await self._load_session_history(session_id) if session_id else []
+
+        # Build user message — support vision content list when images are attached
+        if images:
+            user_content: list = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": img.get("mime", "image/jpeg"),
+                        "data": img.get("data", ""),
+                    },
+                }
+                for img in images
+            ]
+            user_content.append({"type": "text", "text": safe_message})
+        else:
+            user_content = safe_message  # type: ignore[assignment]
+
         messages = (
             [{"role": "system", "content": system_prompt}]
             + history
-            + [{"role": "user", "content": safe_message}]
+            + [{"role": "user", "content": user_content}]
         )
 
         # -- 3. LLM → TOOLS agentic loop --
@@ -130,6 +145,12 @@ class AgentRuntime:
         all_tool_results: list[dict] = []
 
         for _round in range(self._max_tool_rounds + 1):
+            # Check cancellation before each round
+            if cancel_event and cancel_event.is_set():
+                logger.info("[RUNTIME] Cancelled before round %d", _round)
+                agent_node.status = NodeStatus.DONE
+                return
+
             # Buffer this LLM call
             buffered_parts: list[str] = []
             try:
@@ -137,7 +158,10 @@ class AgentRuntime:
                     messages=messages,
                     use_case="chat",
                     project_id=project_id,
+                    cancel_event=cancel_event,
                 ):
+                    if cancel_event and cancel_event.is_set():
+                        break
                     buffered_parts.append(chunk)
             except Exception as exc:
                 logger.error("[RUNTIME] LLM stream error: %s", exc)
@@ -195,9 +219,9 @@ class AgentRuntime:
 
         # -- Save to session history so subsequent turns have context --
         if session_id and full_response:
-            hist = _session_histories[session_id]
-            hist.append({"role": "user", "content": safe_message})
-            hist.append({"role": "assistant", "content": full_response})
+            history.append({"role": "user", "content": safe_message})
+            history.append({"role": "assistant", "content": full_response})
+            await self._save_session_history(session_id, history)
 
         # -- 5. RECORD --
         record_text = full_response
@@ -218,6 +242,35 @@ class AgentRuntime:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    async def _load_session_history(self, session_id: str) -> list:
+        """Load session conversation history from Redis (TTL-backed, survives restarts)."""
+        if not self._redis:
+            return []
+        key = f"remnant:session:history:{session_id}"
+        try:
+            loop = asyncio.get_event_loop()
+            data = await loop.run_in_executor(None, self._redis.r.get, key)
+            if data:
+                return json.loads(data)
+        except Exception as exc:
+            logger.warning("[RUNTIME] Failed to load session history: %s", exc)
+        return []
+
+    async def _save_session_history(self, session_id: str, history: list) -> None:
+        """Persist session history to Redis with 24h TTL, capped at last 20 messages."""
+        if not self._redis:
+            return
+        key = f"remnant:session:history:{session_id}"
+        trimmed = history[-_SESSION_MAX_MESSAGES:]
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                lambda: self._redis.r.set(key, json.dumps(trimmed), ex=_SESSION_TTL),
+            )
+        except Exception as exc:
+            logger.warning("[RUNTIME] Failed to save session history: %s", exc)
 
     async def _recall(
         self, message: str, project_id: Optional[str]

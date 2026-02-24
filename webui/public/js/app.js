@@ -86,6 +86,20 @@ function tsNow() {
 }
 function uid() { return Math.random().toString(36).slice(2); }
 function renderMd(text) { return marked.parse(text || ''); }
+function renderMdWithCopy(text) {
+  const html = marked.parse(text || '');
+  return html.replace(
+    /<pre><code/g,
+    '<pre class="code-block"><button class="copy-code-btn" onclick="copyCode(this)">Copy</button><code'
+  );
+}
+function copyCode(btn) {
+  const code = btn.nextElementSibling?.textContent || '';
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  });
+}
 
 /* ============================================================
    Alpine.js main component
@@ -98,6 +112,9 @@ document.addEventListener('alpine:init', () => {
     wsStatus: 'disconnected',
     wsRetries: 0,
     wsRetryTimer: null,
+
+    /* --- Mobile sidebar --- */
+    sidebarOpen: false,
 
     /* --- Projects --- */
     projects: [],              // from API
@@ -121,6 +138,9 @@ document.addEventListener('alpine:init', () => {
     isStreaming: false,
     currentActivity: '',
     sseAbort: null,
+    inputFocused: false,
+    pendingImage: null,
+    pendingImagePreview: null,
 
     /* --- Memory panel --- */
     memoryOpen: false,
@@ -165,6 +185,10 @@ document.addEventListener('alpine:init', () => {
     waStarting: false,
     waStartError: null,
 
+    /* --- Image modal --- */
+    imageModalOpen: false,
+    imageModalSrc: null,
+
     /* --- Wizard --- */
     wizardOpen: false,
     wizardStep: 1,
@@ -174,6 +198,31 @@ document.addEventListener('alpine:init', () => {
     wizardUser: { name: '', location: '', prefs: '' },
     wizardKeys: { openrouter: '', anthropic: '', openai: '', nvidia: '', moonshot: '' },
     wizardConnectors: { telegram: '', whatsapp: '' },
+
+    /* --- Agents tab --- */
+    agentsData: null,   // { agents: {...}, routing: {...} }
+    agentsEdits: {},    // local edits buffer keyed by agent name
+    allTools: ['filesystem', 'web_search', 'code_exec', 'http_client', 'memory_retrieve', 'memory_record', 'config', 'shell', 'n8n'],
+
+    /* --- Admin tab --- */
+    adminLoaded: false,
+    budgetForm: { max_cost_usd_per_day: null, max_tokens_per_day: null },
+    compacting: false, compactionResult: null,
+    agentGraph: null, laneStatus: null,
+    securityTestInput: '', securityTestResult: null,
+    blockedLog: [],
+
+    /* --- Scheduler tab --- */
+    scheduleJobs: [],
+    scheduleLoaded: false,
+
+    /* --- Backup tab --- */
+    backupRestoring: false,
+    backupRestoreResult: null,
+
+    /* --- Diagnose --- */
+    diagnoseResult: null,
+    diagnosing: false,
 
     /* ================================================================
        COMPUTED
@@ -202,6 +251,12 @@ document.addEventListener('alpine:init', () => {
 
     get modelsForTab() {
       return this.availableModels.filter(m => m.provider === this.modelProviderTab);
+    },
+
+    get shortModelName() {
+      const m = this.settingsData?.default_model || '';
+      const parts = m.split('/');
+      return parts.length >= 2 ? parts[parts.length - 1].split(':')[0].slice(0, 20) : m;
     },
 
     /* ================================================================
@@ -364,7 +419,7 @@ document.addEventListener('alpine:init', () => {
         newMessages.push({
           id: uid(), role: 'agent', raw: msg.response,
           parts: parseAgentOutput(msg.response),
-          streaming: false, stepOpen: true, ts: new Date().toISOString(),
+          streaming: false, stepOpen: false, ts: new Date().toISOString(),
         });
       }
 
@@ -407,7 +462,7 @@ document.addEventListener('alpine:init', () => {
         newMessages.push({
           id: uid(), role: 'agent', raw: msg.response,
           parts: parseAgentOutput(msg.response),
-          streaming: false, stepOpen: true, ts: new Date().toISOString(),
+          streaming: false, stepOpen: false, ts: new Date().toISOString(),
         });
       }
 
@@ -449,34 +504,64 @@ document.addEventListener('alpine:init', () => {
       if (!this.activeChat) this.newChat();
       const chat = this.activeChat;
 
-      chat.messages.push({ id: uid(), role: 'user', text, ts: tsNow() });
+      // Capture pending image
+      const imageFile = this.pendingImage;
+      const imagePreview = this.pendingImagePreview;
+      this.pendingImage = null;
+      this.pendingImagePreview = null;
+
+      // Encode image to base64 if present
+      let images = null;
+      if (imageFile) {
+        try {
+          const b64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(imageFile);
+          });
+          images = [{ mime: imageFile.type || 'image/jpeg', data: b64, preview: imagePreview }];
+        } catch (_) {}
+      }
+
+      chat.messages.push({ id: uid(), role: 'user', text, ts: tsNow(), images: images ? [{ preview: imagePreview }] : null });
       this.inputText = '';
       this.autoResize();
       this.scrollToBottom();
 
       const agentMsg = {
         id: uid(), role: 'agent', raw: '', parts: [],
-        streaming: true, ts: tsNow(), stepOpen: true,
+        streaming: true, ts: tsNow(), stepOpen: false,
       };
       chat.messages.push(agentMsg);
       this.isStreaming = true;
       this.currentActivity = 'Thinking';
       this.scrollToBottom();
 
+      // Strip preview from images before sending (only send mime+data)
+      const sendImages = images ? images.map(({ mime, data }) => ({ mime, data })) : null;
+
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({
           message: text,
           project_id: this.activeProjectId || null,
           session_id: chat.sessionId,
+          images: sendImages,
         }));
       } else {
-        await this.sendViaSSE(text, chat, agentMsg);
+        await this.sendViaSSE(text, chat, agentMsg, sendImages);
       }
     },
 
     stop() {
       if (!this.isStreaming) return;
+      // Abort SSE connection
       if (this.sseAbort) { this.sseAbort.abort(); this.sseAbort = null; }
+      // Send stop signal over WebSocket
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        const sessionId = this.activeChat?.sessionId;
+        this.ws.send(JSON.stringify({ type: 'stop', session_id: sessionId }));
+      }
       this.isStreaming = false;
       this.currentActivity = '';
       const last = this.activeChat?.messages?.at(-1);
@@ -487,7 +572,7 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    async sendViaSSE(text, chat, agentMsg) {
+    async sendViaSSE(text, chat, agentMsg, images = null) {
       const controller = new AbortController();
       this.sseAbort = controller;
       try {
@@ -499,6 +584,7 @@ document.addEventListener('alpine:init', () => {
             project_id: this.activeProjectId || null,
             session_id: chat.sessionId,
             channel: 'api',
+            images: images,
           }),
           signal: controller.signal,
         });
@@ -583,6 +669,7 @@ document.addEventListener('alpine:init', () => {
       if (this.isStreaming) return;
       this.activeChatId = id;
       this.activeView = null;
+      this.sidebarOpen = false;
       this.$nextTick(() => this.scrollToBottom());
     },
 
@@ -1336,6 +1423,279 @@ document.addEventListener('alpine:init', () => {
     wizardFinish() {
       localStorage.setItem(LS_WIZARD, '1');
       this.wizardOpen = false;
+    },
+
+    /* ================================================================
+       THINKING CONFIG
+       ================================================================ */
+    async saveThinkingConfig(m, enabled) {
+      try {
+        const overrides = this.modelConfigForm[m.key] || {};
+        await fetch('/api/settings/model-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: m.provider,
+            model: m.model,
+            thinking_enabled: enabled,
+            thinking_budget_tokens: overrides.thinking_budget_tokens ?? m.thinking_budget_tokens ?? 8000,
+          }),
+        });
+      } catch (_) {}
+    },
+
+    /* ================================================================
+       AGENTS TAB
+       ================================================================ */
+    async loadAgents() {
+      try {
+        const resp = await fetch('/api/admin/agents');
+        if (resp.ok) {
+          this.agentsData = await resp.json();
+          // Deep-copy so edits don't mutate original until saved
+          this.agentsEdits = JSON.parse(JSON.stringify(this.agentsData.agents || {}));
+        }
+      } catch (_) {}
+    },
+
+    setAgentField(name, field, value) {
+      if (!this.agentsEdits[name]) this.agentsEdits[name] = {};
+      this.agentsEdits[name][field] = value;
+      if (this.agentsData?.agents?.[name]) {
+        this.agentsData.agents[name][field] = value;
+      }
+    },
+
+    toggleAgentTool(name, tool, checked) {
+      if (!this.agentsData?.agents?.[name]) return;
+      const tools = [...(this.agentsData.agents[name].tools || [])];
+      if (checked && !tools.includes(tool)) tools.push(tool);
+      if (!checked) {
+        const idx = tools.indexOf(tool);
+        if (idx >= 0) tools.splice(idx, 1);
+      }
+      this.setAgentField(name, 'tools', tools);
+    },
+
+    async saveAgent(name) {
+      const agent = this.agentsData?.agents?.[name];
+      if (!agent) return;
+      try {
+        const resp = await fetch(`/api/admin/agents/${encodeURIComponent(name)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(agent),
+        });
+        if (resp.ok) {
+          // Flash visual feedback
+          const btn = event?.target;
+          if (btn) { btn.textContent = '✓ Saved'; setTimeout(() => { btn.textContent = 'Save'; }, 1500); }
+        }
+      } catch (_) {}
+    },
+
+    async deleteAgent(name) {
+      if (!confirm(`Delete agent "${name}"?`)) return;
+      try {
+        const resp = await fetch(`/api/admin/agents/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        if (resp.ok) {
+          delete this.agentsData.agents[name];
+          this.agentsData = { ...this.agentsData };
+        }
+      } catch (_) {}
+    },
+
+    addNewAgent() {
+      const name = prompt('Agent type name (e.g. "summarizer"):');
+      if (!name?.trim()) return;
+      const slug = name.trim().toLowerCase().replace(/\s+/g, '_');
+      if (!this.agentsData) this.agentsData = { agents: {}, routing: {} };
+      this.agentsData.agents[slug] = {
+        name: name.trim(),
+        description: '',
+        llm: 'ollama',
+        model: 'qwen3:4b',
+        system_prompt: 'You are a helpful AI assistant.',
+        tools: ['filesystem', 'web_search'],
+        max_depth: 1,
+      };
+      this.agentsData = { ...this.agentsData };
+    },
+
+    setRoutingChannel(channel, agentName) {
+      if (!this.agentsData) return;
+      if (!this.agentsData.routing) this.agentsData.routing = {};
+      this.agentsData.routing[channel] = agentName;
+    },
+
+    async saveRouting() {
+      try {
+        const resp = await fetch('/api/admin/routing', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.agentsData?.routing || {}),
+        });
+        if (resp.ok) alert('Routing saved.');
+      } catch (_) {}
+    },
+
+    /* ================================================================
+       ADMIN TAB
+       ================================================================ */
+    async loadAdmin() {
+      this.adminLoaded = false;
+      await this.loadSettingsData();
+      this.budgetForm.max_cost_usd_per_day = this.settingsData.budget?.max_cost_usd_per_day ?? null;
+      this.budgetForm.max_tokens_per_day = this.settingsData.budget?.max_tokens_per_day ?? null;
+      this.adminLoaded = true;
+    },
+
+    async saveBudget() {
+      try {
+        const resp = await fetch('/api/settings/budget', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.budgetForm),
+        });
+        if (resp.ok) { await this.loadSettingsData(); alert('Budget saved.'); }
+      } catch (_) {}
+    },
+
+    async triggerCompaction() {
+      this.compacting = true;
+      this.compactionResult = null;
+      try {
+        const resp = await fetch('/api/admin/compact', { method: 'POST' });
+        if (resp.ok) {
+          const data = await resp.json();
+          this.compactionResult = `Compacted ${data.compacted} chunk(s).`;
+        }
+      } catch (_) {}
+      this.compacting = false;
+    },
+
+    async loadAgentGraph() {
+      try {
+        const resp = await fetch('/api/admin/agent-graph');
+        if (resp.ok) this.agentGraph = await resp.json();
+      } catch (_) {}
+    },
+
+    async loadLaneStatus() {
+      try {
+        const resp = await fetch('/api/admin/lanes');
+        if (resp.ok) this.laneStatus = await resp.json();
+      } catch (_) {}
+    },
+
+    async testSecurity() {
+      this.securityTestResult = null;
+      try {
+        const resp = await fetch('/api/admin/security/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: this.securityTestInput }),
+        });
+        if (resp.ok) this.securityTestResult = await resp.json();
+      } catch (_) {}
+    },
+
+    async loadBlockedLog() {
+      try {
+        const resp = await fetch('/api/admin/security/blocked?limit=30');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.blockedLog = data.blocked || [];
+        }
+      } catch (_) {}
+    },
+
+    /* ================================================================
+       SCHEDULER TAB
+       ================================================================ */
+    async loadSchedule() {
+      try {
+        const resp = await fetch('/api/admin/schedule');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.scheduleJobs = data.jobs || [];
+          this.scheduleLoaded = true;
+        }
+      } catch (_) {}
+    },
+
+    async runJob(jobId) {
+      try {
+        const resp = await fetch(`/api/admin/schedule/${encodeURIComponent(jobId)}/run`, { method: 'POST' });
+        if (resp.ok) {
+          await this.loadSchedule();
+          alert('Job triggered.');
+        }
+      } catch (_) {}
+    },
+
+    /* ================================================================
+       BACKUP TAB
+       ================================================================ */
+    downloadBackup() {
+      window.open('/api/admin/backup', '_blank');
+    },
+
+    async restoreBackup(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (!confirm(`Restore from "${file.name}"? This will overwrite memory and config files.`)) {
+        event.target.value = '';
+        return;
+      }
+      this.backupRestoring = true;
+      this.backupRestoreResult = null;
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const resp = await fetch('/api/admin/restore', { method: 'POST', body: fd });
+        const data = await resp.json();
+        this.backupRestoreResult = resp.ok
+          ? `Restored from ${data.filename}`
+          : `Error: ${data.detail || 'Restore failed'}`;
+      } catch (e) {
+        this.backupRestoreResult = `Error: ${e.message}`;
+      } finally {
+        this.backupRestoring = false;
+        event.target.value = '';
+      }
+    },
+
+    /* ================================================================
+       DIAGNOSE TAB
+       ================================================================ */
+    async runDiagnostics() {
+      this.diagnosing = true;
+      this.diagnoseResult = null;
+      try {
+        const resp = await fetch('/api/admin/diagnose', { method: 'POST' });
+        if (resp.ok) this.diagnoseResult = await resp.json();
+      } catch (e) {
+        this.diagnoseResult = { error: e.message };
+      } finally {
+        this.diagnosing = false;
+      }
+    },
+
+    /* ================================================================
+       FILE / IMAGE HANDLING
+       ================================================================ */
+    onFileSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const model = this.availableModels.find(m => m.key === this.settingsData?.default_model);
+      if (!model?.has_vision) {
+        alert('The current default model does not support image input.\nPlease go to Settings → Models and set a vision-capable model as default (e.g. gpt-4o, claude-3-5-sonnet).');
+        event.target.value = '';
+        return;
+      }
+      this.pendingImage = file;
+      this.pendingImagePreview = URL.createObjectURL(file);
     },
 
     /* ================================================================

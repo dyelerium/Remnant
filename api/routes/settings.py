@@ -22,6 +22,12 @@ _API_KEY_VARS = [
     "OPENAI_API_KEY",
     "NVIDIA_API_KEY",
     "MOONSHOT_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "GROQ_API_KEY",
+    "MISTRAL_API_KEY",
+    "XAI_API_KEY",
+    "SAMBANOVA_API_KEY",
+    "VENICE_API_KEY",
 ]
 _CONNECTOR_VARS = [
     "TELEGRAM_BOT_TOKEN",
@@ -143,6 +149,47 @@ async def set_default_model(body: ModelRequest, request: Request) -> dict:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+class ModelConfigRequest(BaseModel):
+    provider: str
+    model: str
+    thinking_enabled: Optional[bool] = None
+    thinking_budget_tokens: Optional[int] = None
+
+
+@router.post("/settings/model-config")
+async def update_model_config(body: ModelConfigRequest, request: Request) -> dict:
+    """Update per-model config fields (thinking, etc.) in the registry + YAML."""
+    registry = request.app.state.registry
+    key = f"{body.provider}/{body.model}"
+    spec = registry.get(key)
+    if not spec:
+        raise HTTPException(status_code=404, detail=f"Model {key!r} not found")
+
+    if body.thinking_enabled is not None:
+        spec.thinking_enabled = body.thinking_enabled
+    if body.thinking_budget_tokens is not None:
+        spec.thinking_budget_tokens = body.thinking_budget_tokens
+
+    # Persist to YAML
+    config_path = Path("/app/config/llm_providers.yaml")
+    if not config_path.exists():
+        config_path = Path("config/llm_providers.yaml")
+    if config_path.exists():
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        model_cfg = cfg.get("providers", {}).get(body.provider, {}).get("models", {}).get(body.model, {})
+        if body.thinking_enabled is not None:
+            model_cfg["thinking_enabled"] = body.thinking_enabled
+        if body.thinking_budget_tokens is not None:
+            model_cfg["thinking_budget_tokens"] = body.thinking_budget_tokens
+        # Write back
+        cfg.setdefault("providers", {}).setdefault(body.provider, {}).setdefault("models", {})[body.model] = model_cfg
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+
+    return {"status": "updated", "key": key}
+
+
 class ConnectorRequest(BaseModel):
     telegram_bot_token: Optional[str] = None
     whatsapp_sidecar_url: Optional[str] = None
@@ -209,6 +256,7 @@ async def save_ollama_settings(body: OllamaRequest, request: Request) -> dict:
     registry.reload_from_yaml({
         "providers": registry._providers_cfg,
         "defaults": registry._defaults,
+        "fallback_chain": registry._fallback_chain,
     })
 
     return {"status": "saved", "url": url}

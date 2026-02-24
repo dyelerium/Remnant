@@ -5,6 +5,12 @@ defaults:
   embedding: sentence-transformers/all-MiniLM-L6-v2
   fast: ollama/qwen3:4b
   planning: ollama/qwen3:4b
+fallback_chain:
+- openrouter/stepfun/step-3.5-flash:free
+- anthropic/claude-haiku-4-5-20251001
+- openai/gpt-4o-mini
+- moonshot/kimi-k1.5
+- ollama/qwen3:4b
 providers:
   anthropic:
     api_key_env: ANTHROPIC_API_KEY
@@ -26,10 +32,13 @@ providers:
         context_window: 200000
         cost_per_1k_input: 0.015
         cost_per_1k_output: 0.075
+        has_thinking: true
         has_vision: true
         history_fraction: 0.7
         max_completion_tokens: 8192
         temperature: 0.7
+        thinking_budget_tokens: 10000
+        thinking_enabled: false
         use_cases:
         - chat
         - planning
@@ -39,10 +48,13 @@ providers:
         context_window: 200000
         cost_per_1k_input: 0.003
         cost_per_1k_output: 0.015
+        has_thinking: true
         has_vision: true
         history_fraction: 0.7
         max_completion_tokens: 8192
         temperature: 0.7
+        thinking_budget_tokens: 8000
+        thinking_enabled: false
         use_cases:
         - chat
         - planning
@@ -50,6 +62,114 @@ providers:
         - compaction
         - default
     name: Anthropic Claude
+  deepseek:
+    api_key_env: DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com/v1
+    models:
+      deepseek-chat:
+        context_window: 64000
+        cost_per_1k_input: 0.00027
+        cost_per_1k_output: 0.0011
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+      deepseek-reasoner:
+        context_window: 64000
+        cost_per_1k_input: 0.00055
+        cost_per_1k_output: 0.00219
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+    name: DeepSeek
+  groq:
+    api_key_env: GROQ_API_KEY
+    base_url: https://api.groq.com/openai/v1
+    models:
+      gemma2-9b-it:
+        context_window: 8192
+        cost_per_1k_input: 0.0002
+        cost_per_1k_output: 0.0002
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+        - fast
+      llama-3.3-70b-versatile:
+        context_window: 128000
+        cost_per_1k_input: 0.00059
+        cost_per_1k_output: 0.00079
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - fast
+      moonshotai/kimi-k2-instruct:
+        context_window: 128000
+        cost_per_1k_input: 0.0003
+        cost_per_1k_output: 0.0015
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+    name: Groq
+  lmstudio:
+    api_key_env: null
+    base_url: http://localhost:1234/v1
+    models:
+      local-model:
+        context_window: 32000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+    name: LM Studio (local)
+  mistral:
+    api_key_env: MISTRAL_API_KEY
+    base_url: https://api.mistral.ai/v1
+    models:
+      mistral-large-latest:
+        context_window: 128000
+        cost_per_1k_input: 0.002
+        cost_per_1k_output: 0.006
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+      mistral-small-latest:
+        context_window: 128000
+        cost_per_1k_input: 0.0001
+        cost_per_1k_output: 0.0003
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - fast
+        - compaction
+    name: Mistral AI
   moonshot:
     api_key_env: MOONSHOT_API_KEY
     base_url: https://api.moonshot.cn/v1
@@ -471,3 +591,82 @@ providers:
         - chat
         - planning
     name: OpenRouter
+  sambanova:
+    api_key_env: SAMBANOVA_API_KEY
+    base_url: https://api.sambanova.ai/v1
+    models:
+      DeepSeek-R1-0528:
+        context_window: 128000
+        cost_per_1k_input: 0.0005
+        cost_per_1k_output: 0.0015
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+      Meta-Llama-3.3-70B-Instruct:
+        context_window: 128000
+        cost_per_1k_input: 0.0006
+        cost_per_1k_output: 0.0012
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - fast
+    name: SambaNova
+  venice:
+    api_key_env: VENICE_API_KEY
+    base_url: https://api.venice.ai/api/v1
+    models:
+      mistral-31-24b:
+        context_window: 32000
+        cost_per_1k_input: 0.0008
+        cost_per_1k_output: 0.0008
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+      qwen-2.5-72b:
+        context_window: 32000
+        cost_per_1k_input: 0.0008
+        cost_per_1k_output: 0.0008
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+    name: Venice.ai
+  xai:
+    api_key_env: XAI_API_KEY
+    base_url: https://api.x.ai/v1
+    models:
+      grok-3:
+        context_window: 131072
+        cost_per_1k_input: 0.003
+        cost_per_1k_output: 0.015
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+      grok-3-mini:
+        context_window: 131072
+        cost_per_1k_input: 0.0003
+        cost_per_1k_output: 0.0005
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - fast
+    name: xAI (Grok)

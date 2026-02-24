@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
   <title>Remnant</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%237c3aed'/><text x='6' y='24' font-size='20'>⬡</text></svg>" />
 
@@ -144,6 +144,8 @@
        HEADER
        ============================================================ -->
   <header>
+    <!-- Mobile sidebar toggle -->
+    <button class="header-btn mobile-menu-btn" title="Menu" @click="sidebarOpen = !sidebarOpen">☰</button>
     <!-- Logo -->
     <div class="logo">
       <div class="logo-icon">⬡</div>
@@ -158,7 +160,7 @@
     <!-- Connection / activity status -->
     <div class="status-pill" :class="{ streaming: isStreaming }">
       <div class="status-dot" :class="statusCls"></div>
-      <span x-text="statusLabel"></span>
+      <span class="status-label-text" x-text="statusLabel"></span>
     </div>
 
     <!-- Memory button -->
@@ -168,10 +170,13 @@
     <button class="header-btn" title="Settings" @click="openSettings()">⚙️</button>
   </header>
 
+  <!-- Mobile sidebar backdrop -->
+  <div class="sidebar-backdrop" x-show="sidebarOpen" @click="sidebarOpen=false" style="display:none"></div>
+
   <!-- ============================================================
        SIDEBAR
        ============================================================ -->
-  <aside>
+  <aside :class="{ open: sidebarOpen }">
     <div class="sidebar-scroll">
 
       <!-- New Project button -->
@@ -276,18 +281,14 @@
       <!-- Welcome screen (no messages) -->
       <div class="welcome" x-show="activeMessages.length === 0">
         <div class="welcome-icon">⬡</div>
-        <h2>Remnant is ready</h2>
-        <p>A Redis-backed, hierarchical multi-agent framework with long-term memory and unified security.</p>
-        <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;justify-content:center">
-          <button class="btn-primary" style="font-size:12px;padding:6px 12px"
-                  @click="inputText='What can you help me with?'; send()">What can you do?</button>
-          <button class="btn-primary" style="font-size:12px;padding:6px 12px;background:var(--bg3);color:var(--text-dim);border:1px solid var(--border)"
-                  @click="openSettings()">Configure API keys</button>
+        <div class="welcome-chips">
+          <button class="chip-btn" @click="inputText='What can you help me with?'; send()">What can you do?</button>
+          <button class="chip-btn secondary" @click="openSettings()">Configure API keys</button>
         </div>
       </div>
 
       <!-- Messages -->
-      <template x-for="msg in activeMessages" :key="msg.id">
+      <template x-for="(msg, idx) in activeMessages" :key="msg.id">
         <div class="msg-row" :class="msg.role">
 
           <!-- User message -->
@@ -295,10 +296,19 @@
             <div>
               <div class="msg-meta user">
                 <span class="who">You</span>
-                <span x-text="msg.ts"></span>
+                <span class="ts" x-text="msg.ts"></span>
               </div>
               <div class="msg-bubble" style="align-self:flex-end;max-width:75%;margin-left:auto">
-                <div class="md-content" x-html="renderMd(msg.text)"></div>
+                <!-- Attached images -->
+                <template x-if="msg.images && msg.images.length > 0">
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+                    <template x-for="(img, ii) in (msg.images || [])" :key="ii">
+                      <img :src="img.preview" style="height:80px;width:80px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--border)"
+                           @click="imageModalSrc=img.preview;imageModalOpen=true" />
+                    </template>
+                  </div>
+                </template>
+                <div class="md-content" x-html="renderMdWithCopy(msg.text)"></div>
               </div>
             </div>
           </template>
@@ -306,9 +316,9 @@
           <!-- Agent message -->
           <template x-if="msg.role === 'agent'">
             <div>
-              <div class="msg-meta agent">
+              <div class="msg-meta agent" :class="{ 'first-agent': idx === 0 || activeMessages[idx-1]?.role !== 'agent' }">
                 <span class="who">Remnant</span>
-                <span x-text="msg.ts"></span>
+                <span class="ts" x-text="msg.ts"></span>
                 <span x-show="msg.streaming" style="display:flex;align-items:center;gap:5px;margin-left:4px">
                   <span class="spinner"></span>
                   <span style="font-size:11px;color:var(--accent)" x-text="currentActivity || 'Thinking…'"></span>
@@ -335,14 +345,13 @@
                 </div>
                 <!-- Markdown response -->
                 <template x-for="(part, pi) in finalMdParts(msg)" :key="pi">
-                  <div class="md-content" x-html="renderMd(part.text)" style="margin-top:8px"></div>
+                  <div class="md-content" x-html="renderMdWithCopy(part.text)" style="margin-top:8px"></div>
                 </template>
-                <!-- Streaming cursor -->
+                <!-- Typing dots (no content yet) -->
                 <template x-if="msg.streaming && msg.parts.length === 0">
-                  <div style="color:var(--text-dim);font-size:13px">
-                    <span class="streaming-cursor"></span>
-                  </div>
+                  <div class="typing-dots"><span></span><span></span><span></span></div>
                 </template>
+                <!-- Streaming cursor (mid-stream) -->
                 <template x-if="msg.streaming && msg.parts.length > 0">
                   <span class="streaming-cursor" style="margin-left:2px"></span>
                 </template>
@@ -359,18 +368,24 @@
          INPUT AREA
          ============================================================ -->
     <div class="input-area" x-show="!activeView || !activeView.startsWith('project-memory-')">
-      <div class="input-box">
-        <textarea
-          id="msgInput"
-          placeholder="Send a message… (Shift+Enter for new line)"
-          rows="1"
-          x-model="inputText"
-          @keydown="handleKeydown($event)"
-          @input="autoResize()"
-          :disabled="isStreaming"
-        ></textarea>
-        <div class="input-actions">
-          <button class="btn-stop" @click="stop()" x-show="isStreaming" title="Stop (Esc)">■ Stop</button>
+      <!-- Image preview row -->
+      <div x-show="pendingImagePreview" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 4px">
+        <div style="position:relative;display:inline-block">
+          <img :src="pendingImagePreview" style="height:56px;width:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border)" />
+          <button style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--bg4);border:1px solid var(--border);font-size:10px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);cursor:pointer"
+                  @click="pendingImage=null;pendingImagePreview=null">✕</button>
+        </div>
+        <span style="font-size:11px;color:var(--text-muted)" x-text="pendingImage?.name"></span>
+      </div>
+      <div class="input-pill" :class="{ focused: inputFocused, streaming: isStreaming }">
+        <button class="input-clip-btn" @click="$refs.fileInput.click()" title="Attach image">📎</button>
+        <input type="file" x-ref="fileInput" accept="image/*" style="display:none" @change="onFileSelected($event)" />
+        <textarea id="msgInput" placeholder="Send a message… (Shift+Enter for new line)"
+          rows="1" x-model="inputText" @keydown="handleKeydown($event)" @input="autoResize()"
+          :disabled="isStreaming" @focus="inputFocused=true" @blur="inputFocused=false"></textarea>
+        <div class="input-right">
+          <span class="model-chip" x-text="shortModelName" x-show="shortModelName"></span>
+          <button class="btn-stop" @click="stop()" x-show="isStreaming" title="Stop (Esc)">■</button>
           <button class="btn-send" @click="send()" :disabled="isStreaming || !inputText.trim()"
                   x-show="!isStreaming" title="Send (Enter)">➤</button>
         </div>
@@ -492,6 +507,18 @@
         </div>
         <div class="settings-nav-item" :class="{ active: settingsTab === 'usage' }" @click="settingsTab = 'usage'; loadUsage()">
           <span>📊</span> Usage
+        </div>
+        <div class="settings-nav-item" :class="{ active: settingsTab === 'agents' }" @click="settingsTab = 'agents'; loadAgents()">
+          <span>🤝</span> Agents
+        </div>
+        <div class="settings-nav-item" :class="{ active: settingsTab === 'admin' }" @click="settingsTab = 'admin'; loadAdmin()">
+          <span>🖥️</span> Admin
+        </div>
+        <div class="settings-nav-item" :class="{ active: settingsTab === 'scheduler' }" @click="settingsTab = 'scheduler'; loadSchedule()">
+          <span>⏰</span> Scheduler
+        </div>
+        <div class="settings-nav-item" :class="{ active: settingsTab === 'backup' }" @click="settingsTab = 'backup'">
+          <span>💾</span> Backup
         </div>
         <div class="settings-nav-item" :class="{ active: settingsTab === 'about' }" @click="settingsTab = 'about'">
           <span>ℹ️</span> About
@@ -674,6 +701,24 @@
                                      @change="setModelConfigField(m.key, 'stream', $event.target.checked)" />
                               <span style="font-size:12px">Stream responses token-by-token</span>
                             </label>
+                          </div>
+                          <!-- Thinking / extended reasoning — shown only if model supports it -->
+                          <div class="form-group" x-show="m.has_thinking" style="margin:0;grid-column:1/-1">
+                            <label class="form-label" style="font-size:11px">Extended Thinking / Reasoning</label>
+                            <label style="display:flex;align-items:center;gap:6px;margin-top:6px">
+                              <input type="checkbox"
+                                     :checked="modelConfigForm[m.key]?.thinking_enabled ?? m.thinking_enabled ?? false"
+                                     @change="setModelConfigField(m.key, 'thinking_enabled', $event.target.checked); saveThinkingConfig(m, $event.target.checked)" />
+                              <span style="font-size:12px">Enable extended thinking (costs more tokens)</span>
+                            </label>
+                            <div x-show="modelConfigForm[m.key]?.thinking_enabled ?? m.thinking_enabled ?? false" style="margin-top:8px">
+                              <label class="form-label" style="font-size:11px">
+                                Thinking budget: <span x-text="(modelConfigForm[m.key]?.thinking_budget_tokens ?? m.thinking_budget_tokens ?? 8000).toLocaleString()"></span> tokens
+                              </label>
+                              <input type="range" min="1000" max="32000" step="1000" style="width:100%"
+                                     :value="modelConfigForm[m.key]?.thinking_budget_tokens ?? m.thinking_budget_tokens ?? 8000"
+                                     @input="setModelConfigField(m.key, 'thinking_budget_tokens', +$event.target.value)" />
+                            </div>
                           </div>
                           <div class="form-group" style="margin:0">
                             <label class="form-label" style="font-size:11px">Custom $/1K input</label>
@@ -968,6 +1013,345 @@
           </template>
         </div>
 
+        <!-- Agents -->
+        <div x-show="settingsTab === 'agents'" style="display:none">
+          <div style="display:flex;align-items:center;margin-bottom:16px">
+            <h3 class="settings-section-title" style="margin:0">Agent Definitions</h3>
+            <button class="btn-primary" style="font-size:12px;padding:4px 12px;margin-left:auto"
+                    @click="addNewAgent()">+ New Agent</button>
+          </div>
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">
+            Configure LLM, tools, and limits for each agent type. Changes are saved immediately to <code style="background:var(--bg4);padding:2px 5px;border-radius:3px">config/agents.yaml</code>.
+          </p>
+
+          <template x-if="agentsData && agentsData.agents">
+            <div>
+              <template x-for="(agent, name) in agentsData.agents" :key="name">
+                <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;background:var(--bg2)">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                    <div style="font-size:14px;font-weight:600;color:var(--text)" x-text="agent.name || name"></div>
+                    <div style="font-size:11px;color:var(--text-muted);background:var(--bg4);padding:2px 8px;border-radius:10px" x-text="name"></div>
+                    <button x-show="name !== 'default'" class="btn-ghost"
+                            style="margin-left:auto;font-size:11px;color:var(--err)"
+                            @click="deleteAgent(name)">Delete</button>
+                  </div>
+                  <div class="form-group" style="margin-bottom:10px">
+                    <label class="form-label" style="font-size:11px">Description</label>
+                    <input class="form-input" type="text" style="font-size:12px"
+                           :value="agent.description || ''"
+                           @change="setAgentField(name, 'description', $event.target.value)" />
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                    <div class="form-group" style="margin:0">
+                      <label class="form-label" style="font-size:11px">Model</label>
+                      <select class="form-input" style="font-size:12px"
+                              @change="setAgentField(name, 'model', $event.target.value)">
+                        <template x-for="m in availableModels" :key="m.key">
+                          <option :value="m.key" :selected="(agent.llm + '/' + agent.model) === m.key || agent.model === m.model"
+                                  x-text="m.provider + ' / ' + m.model"></option>
+                        </template>
+                      </select>
+                    </div>
+                    <div class="form-group" style="margin:0">
+                      <label class="form-label" style="font-size:11px;display:flex;align-items:center;gap:4px">Max depth <span class="info-tip" data-tip="Each agent node tracks its current depth (how deep in the delegation chain it is). When depth &gt;= max_depth, it can no longer spawn sub-agents.&#10;&#10;Current config values:&#10;- default → max_depth: 3 (sub-agents up to 3 levels deep)&#10;- researcher → max_depth: 1 (no sub-agent delegation)&#10;- coder → max_depth: 1 (no sub-agent delegation)">ⓘ</span></label>
+                      <input class="form-input" type="number" min="1" max="10" style="font-size:12px"
+                             :value="agent.max_depth || 3"
+                             @change="setAgentField(name, 'max_depth', +$event.target.value)" />
+                    </div>
+                  </div>
+                  <div class="form-group" style="margin-bottom:10px">
+                    <label class="form-label" style="font-size:11px">System prompt</label>
+                    <textarea class="form-input" rows="3" style="font-size:12px;resize:vertical;font-family:monospace"
+                              :value="agent.system_prompt || ''"
+                              @change="setAgentField(name, 'system_prompt', $event.target.value)"></textarea>
+                  </div>
+                  <div class="form-group" style="margin-bottom:10px">
+                    <label class="form-label" style="font-size:11px">Allowed tools</label>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+                      <template x-for="tool in allTools" :key="tool">
+                        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                          <input type="checkbox"
+                                 :checked="(agent.tools || []).includes(tool)"
+                                 @change="toggleAgentTool(name, tool, $event.target.checked)" />
+                          <span x-text="tool"></span>
+                        </label>
+                      </template>
+                    </div>
+                  </div>
+                  <div style="text-align:right">
+                    <button class="btn-primary" style="font-size:12px;padding:4px 14px"
+                            @click="saveAgent(name)">Save</button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Channel routing -->
+              <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px" x-show="agentsData.routing">
+                <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">Channel Routing</h4>
+                <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px">Which agent handles each channel.</p>
+                <template x-for="(agentName, channel) in (agentsData.routing || {})" :key="channel">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+                    <span style="font-size:12px;color:var(--text-dim);width:100px" x-text="channel"></span>
+                    <select class="form-input" style="font-size:12px;flex:1"
+                            @change="setRoutingChannel(channel, $event.target.value)">
+                      <template x-for="(ag, agName) in (agentsData.agents || {})" :key="agName">
+                        <option :value="agName" :selected="agentName === agName" x-text="agName"></option>
+                      </template>
+                    </select>
+                  </div>
+                </template>
+                <button class="btn-secondary" style="font-size:12px;margin-top:8px"
+                        @click="saveRouting()">Save routing</button>
+              </div>
+            </div>
+          </template>
+          <div x-show="!agentsData || !agentsData.agents" style="text-align:center;color:var(--text-muted);padding:30px">
+            Loading agents…
+          </div>
+        </div>
+
+        <!-- Admin -->
+        <div x-show="settingsTab === 'admin'" style="display:none">
+          <h3 class="settings-section-title">Admin</h3>
+
+          <!-- Budget -->
+          <div style="margin-bottom:20px">
+            <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">Budget Limits</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:11px">Max cost/day (USD)</label>
+                <input class="form-input" type="number" min="0" step="0.1" x-model.number="budgetForm.max_cost_usd_per_day" placeholder="e.g. 5.0" />
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:11px">Max tokens/day</label>
+                <input class="form-input" type="number" min="0" step="1000" x-model.number="budgetForm.max_tokens_per_day" placeholder="e.g. 1000000" />
+              </div>
+            </div>
+            <button class="btn-primary" style="font-size:12px;padding:4px 14px" @click="saveBudget()">Save budget</button>
+          </div>
+
+          <!-- Compaction -->
+          <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+            <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">Memory Compaction</h4>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px">Merge redundant memory chunks to reduce storage and improve retrieval.</p>
+            <div style="display:flex;align-items:center;gap:10px">
+              <button class="btn-secondary" style="font-size:12px;display:flex;align-items:center;gap:6px"
+                      @click="triggerCompaction()" :disabled="compacting">
+                <span x-show="compacting" class="spinner" style="width:12px;height:12px;border-width:1.5px"></span>
+                Run compaction
+              </button>
+              <span x-show="compactionResult" style="font-size:12px;color:#10b981" x-text="compactionResult"></span>
+            </div>
+          </div>
+
+          <!-- Agent Graph -->
+          <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+            <div style="display:flex;align-items:center;margin-bottom:8px">
+              <h4 style="font-size:13px;font-weight:600;color:var(--text);margin:0">Agent Graph</h4>
+              <button class="btn-ghost" style="font-size:11px;margin-left:auto" @click="loadAgentGraph()">↻ Load</button>
+            </div>
+            <template x-if="agentGraph">
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead><tr style="color:var(--text-muted);border-bottom:1px solid var(--border)">
+                    <th style="text-align:left;padding:5px 4px">ID</th>
+                    <th style="text-align:left;padding:5px 4px">Type</th>
+                    <th style="text-align:left;padding:5px 4px">Status</th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="(node, nid) in (agentGraph.nodes || {})" :key="nid">
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:5px 4px;color:var(--text-dim);font-family:monospace" x-text="nid"></td>
+                        <td style="padding:5px 4px" x-text="node.type || '—'"></td>
+                        <td style="padding:5px 4px" x-text="node.status || '—'"></td>
+                      </tr>
+                    </template>
+                    <tr x-show="!agentGraph.nodes || Object.keys(agentGraph.nodes||{}).length === 0">
+                      <td colspan="3" style="padding:10px;text-align:center;color:var(--text-muted)">No active agents</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </div>
+
+          <!-- Lane Status -->
+          <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+            <div style="display:flex;align-items:center;margin-bottom:8px">
+              <h4 style="font-size:13px;font-weight:600;color:var(--text);margin:0">Lane Status</h4>
+              <button class="btn-ghost" style="font-size:11px;margin-left:auto" @click="loadLaneStatus()">↻ Load</button>
+            </div>
+            <template x-if="laneStatus">
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead><tr style="color:var(--text-muted);border-bottom:1px solid var(--border)">
+                    <th style="text-align:left;padding:5px 4px">Lane</th>
+                    <th style="text-align:left;padding:5px 4px">Status</th>
+                    <th style="text-align:left;padding:5px 4px">Queue</th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="(lane, lid) in (laneStatus.lanes || {})" :key="lid">
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:5px 4px;color:var(--text-dim)" x-text="lid"></td>
+                        <td style="padding:5px 4px" x-text="lane.status || '—'"></td>
+                        <td style="padding:5px 4px" x-text="lane.queue_size ?? '—'"></td>
+                      </tr>
+                    </template>
+                    <tr x-show="!laneStatus.lanes || Object.keys(laneStatus.lanes||{}).length === 0">
+                      <td colspan="3" style="padding:10px;text-align:center;color:var(--text-muted)">No lanes active</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </div>
+
+          <!-- Security Test -->
+          <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+            <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">Security Test</h4>
+            <div class="form-group">
+              <label class="form-label" style="font-size:11px">Input to test</label>
+              <textarea class="form-textarea" rows="3" x-model="securityTestInput" placeholder="Enter text to test against security rules…"></textarea>
+            </div>
+            <button class="btn-secondary" style="font-size:12px" @click="testSecurity()">Test</button>
+            <template x-if="securityTestResult">
+              <div style="margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:12px">
+                <div style="display:flex;gap:8px;margin-bottom:6px">
+                  <span :style="securityTestResult.safe ? 'color:#10b981' : 'color:var(--err)'"
+                        x-text="securityTestResult.safe ? '✓ Safe' : '✗ Blocked'"></span>
+                  <span style="color:var(--text-muted)" x-text="securityTestResult.reason || ''"></span>
+                </div>
+                <div x-show="securityTestResult.redacted !== securityTestInput" style="margin-top:6px">
+                  <span style="color:var(--text-muted);font-size:11px">Redacted: </span>
+                  <span style="color:var(--text-dim)" x-text="securityTestResult.redacted"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Blocked Log -->
+          <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+            <div style="display:flex;align-items:center;margin-bottom:8px">
+              <h4 style="font-size:13px;font-weight:600;color:var(--text);margin:0">Blocked Inputs Log</h4>
+              <button class="btn-ghost" style="font-size:11px;margin-left:auto" @click="loadBlockedLog()">↻ Load</button>
+            </div>
+            <div x-show="blockedLog.length === 0" style="font-size:12px;color:var(--text-muted)">No blocked inputs logged.</div>
+            <template x-for="(item, i) in blockedLog" :key="i">
+              <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:12px">
+                <div style="color:var(--err);margin-bottom:2px" x-text="item.reason || 'Blocked'"></div>
+                <div style="color:var(--text-muted)" x-text="item.text ? item.text.slice(0,120) : ''"></div>
+                <div style="color:var(--text-muted);font-size:10px;margin-top:2px" x-text="item.ts || item.timestamp || ''"></div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Diagnostics -->
+          <div style="border-top:1px solid var(--border);padding-top:16px">
+            <div style="display:flex;align-items:center;margin-bottom:8px">
+              <h4 style="font-size:13px;font-weight:600;color:var(--text);margin:0">System Diagnostics</h4>
+              <button class="btn-secondary" style="font-size:12px;margin-left:auto;display:flex;align-items:center;gap:6px"
+                      @click="runDiagnostics()" :disabled="diagnosing">
+                <span x-show="diagnosing" class="spinner" style="width:12px;height:12px;border-width:1.5px"></span>
+                Run diagnostics
+              </button>
+            </div>
+            <template x-if="diagnoseResult && diagnoseResult.results">
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead><tr style="color:var(--text-muted);border-bottom:1px solid var(--border)">
+                    <th style="text-align:left;padding:5px 4px">System</th>
+                    <th style="text-align:center;padding:5px 4px">Status</th>
+                    <th style="text-align:left;padding:5px 4px">Detail</th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="(res, sys) in diagnoseResult.results" :key="sys">
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <td style="padding:5px 4px;font-weight:500" x-text="sys"></td>
+                        <td style="padding:5px 4px;text-align:center">
+                          <span x-show="res.ok === true" style="color:#10b981">✓</span>
+                          <span x-show="res.ok === false" style="color:var(--err)">✗</span>
+                          <span x-show="res.ok === null || res.ok === undefined" style="color:var(--text-muted)">—</span>
+                        </td>
+                        <td style="padding:5px 4px;color:var(--text-dim);font-size:11px"
+                            x-text="res.error || res.detail || res.version || ''"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+            <div x-show="diagnoseResult && diagnoseResult.error" style="font-size:12px;color:var(--err);margin-top:8px"
+                 x-text="'Error: ' + (diagnoseResult?.error || '')"></div>
+          </div>
+        </div>
+
+        <!-- Scheduler -->
+        <div x-show="settingsTab === 'scheduler'" style="display:none">
+          <h3 class="settings-section-title">Scheduler</h3>
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">View and manually trigger scheduled background jobs.</p>
+          <button class="btn-secondary" style="font-size:12px;margin-bottom:12px;display:flex;align-items:center;gap:6px" @click="loadSchedule()">
+            ↻ Refresh
+          </button>
+          <div x-show="scheduleJobs.length === 0 && scheduleLoaded" class="empty-state">No scheduled jobs found.</div>
+          <div x-show="!scheduleLoaded && scheduleJobs.length === 0" class="empty-state" style="color:var(--text-muted)">Loading…</div>
+          <template x-if="scheduleJobs.length > 0">
+            <div style="overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px">
+                <thead><tr style="color:var(--text-muted);border-bottom:1px solid var(--border)">
+                  <th style="text-align:left;padding:6px 4px">Name</th>
+                  <th style="text-align:left;padding:6px 4px">Trigger</th>
+                  <th style="text-align:left;padding:6px 4px">Next Run</th>
+                  <th style="text-align:center;padding:6px 4px"></th>
+                </tr></thead>
+                <template x-for="job in scheduleJobs" :key="job.id">
+                  <tbody>
+                    <tr style="border-bottom:1px solid var(--border)">
+                      <td style="padding:6px 4px;font-weight:500" x-text="job.name || job.id"></td>
+                      <td style="padding:6px 4px;color:var(--text-dim);font-size:11px" x-text="job.trigger || '—'"></td>
+                      <td style="padding:6px 4px;color:var(--text-dim);font-size:11px" x-text="job.next_run ? new Date(job.next_run).toLocaleString() : '—'"></td>
+                      <td style="padding:6px 4px;text-align:center">
+                        <button class="btn-ghost" style="font-size:11px;padding:2px 8px" @click="runJob(job.id)">▶ Run now</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </template>
+              </table>
+            </div>
+          </template>
+        </div>
+
+        <!-- Backup -->
+        <div x-show="settingsTab === 'backup'" style="display:none">
+          <h3 class="settings-section-title">Backup &amp; Restore</h3>
+
+          <!-- Download -->
+          <div style="margin-bottom:20px">
+            <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">Download Backup</h4>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px">Download a .tar.gz archive of all memory and config files.</p>
+            <button class="btn-primary" style="font-size:12px;padding:6px 16px;display:flex;align-items:center;gap:8px"
+                    @click="downloadBackup()">
+              ⬇ Download backup
+            </button>
+          </div>
+
+          <!-- Restore -->
+          <div style="border-top:1px solid var(--border);padding-top:16px">
+            <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">Restore from Backup</h4>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px">Upload a previously downloaded .tar.gz file. Memory and config files will be overwritten.</p>
+            <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="file" accept=".tar.gz" style="display:none" @change="restoreBackup($event)" :disabled="backupRestoring" />
+              <button class="btn-secondary" style="font-size:12px;display:flex;align-items:center;gap:6px;pointer-events:none">
+                <span x-show="backupRestoring" class="spinner" style="width:12px;height:12px;border-width:1.5px"></span>
+                <span x-show="!backupRestoring">⬆ Choose file to restore</span>
+                <span x-show="backupRestoring">Restoring…</span>
+              </button>
+            </label>
+            <div x-show="backupRestoreResult" style="margin-top:10px;font-size:12px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px"
+                 :style="backupRestoreResult?.startsWith('Error') ? 'color:var(--err)' : 'color:#10b981'"
+                 x-text="backupRestoreResult"></div>
+          </div>
+        </div>
+
         <!-- About -->
         <div x-show="settingsTab === 'about'" style="display:none">
           <div style="display:flex;flex-direction:column;gap:16px">
@@ -1012,6 +1396,15 @@
 
       </div><!-- /settings-content -->
     </div><!-- /settings-layout -->
+  </div>
+</div>
+
+<!-- ================================================================
+     IMAGE MODAL
+     ================================================================ -->
+<div class="modal-backdrop" x-show="imageModalOpen" @click="imageModalOpen=false;imageModalSrc=null" style="display:none" x-transition>
+  <div @click.stop style="max-width:90vw;max-height:90vh">
+    <img :src="imageModalSrc" style="max-width:90vw;max-height:90vh;border-radius:8px;box-shadow:0 24px 60px rgba(0,0,0,0.7)" />
   </div>
 </div>
 

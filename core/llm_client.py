@@ -1,12 +1,19 @@
 """Unified LLM client — chat() + embed() over provider registry, budget-aware."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import time
 from typing import Any, AsyncIterator, Optional
 
 logger = logging.getLogger(__name__)
+
+# Provider families that use the OpenAI-compatible API
+_OPENAI_COMPAT_PROVIDERS = frozenset({
+    "openai", "openrouter", "nvidia", "moonshot",
+    "deepseek", "groq", "mistral", "xai", "sambanova", "venice", "lmstudio",
+})
 
 
 class LLMClient:
@@ -84,16 +91,73 @@ class LLMClient:
         project_id: Optional[str] = None,
         max_tokens: Optional[int] = None,
         temperature: float = 0.7,
+        cancel_event: Optional[asyncio.Event] = None,
     ) -> AsyncIterator[str]:
-        """Async streaming chat. Yields text chunks."""
+        """Async streaming chat. Yields text chunks. Supports cancellation and fallback cascade."""
         override = f"{provider}/{model}" if provider and model else model
         spec = self.registry.resolve(use_case, project_id, override)
 
         estimated_tokens = sum(len(m.get("content", "")) // 4 for m in messages)
         self.budget.pre_check(spec, estimated_tokens, project_id)
 
-        async for chunk in self._dispatch_chat_stream(spec, messages, max_tokens, temperature):
-            yield chunk
+        # Build fallback list: primary spec + remaining chain entries
+        fallback_specs = self._get_fallback_specs(spec)
+        all_specs = [spec] + fallback_specs
+
+        for attempt, current_spec in enumerate(all_specs):
+            try:
+                async for chunk in self._dispatch_chat_stream(
+                    current_spec, messages, max_tokens, temperature, cancel_event=cancel_event
+                ):
+                    yield chunk
+                return  # Success — done
+            except Exception as exc:
+                if self._is_rate_limit_error(exc) and attempt < len(all_specs) - 1:
+                    next_spec = all_specs[attempt + 1]
+                    logger.warning(
+                        "[LLM] Rate limited on %s/%s, switching to %s/%s",
+                        current_spec.provider, current_spec.model,
+                        next_spec.provider, next_spec.model,
+                    )
+                    yield (
+                        f"\n[SYS] Rate limited on {current_spec.provider}/{current_spec.model}, "
+                        f"switching to {next_spec.provider}/{next_spec.model}…\n"
+                    )
+                    continue
+                raise  # Re-raise non-rate-limit errors or if no more fallbacks
+
+    # ------------------------------------------------------------------
+    # Fallback helpers
+    # ------------------------------------------------------------------
+
+    def _get_fallback_specs(self, primary_spec) -> list:
+        """Return ordered list of fallback ModelSpecs (skipping the primary)."""
+        primary_key = f"{primary_spec.provider}/{primary_spec.model}"
+        specs = []
+        for key in self.registry.get_fallback_chain():
+            if key == primary_key:
+                continue
+            fallback = self.registry.get(key)
+            if fallback and (fallback.api_key is None or fallback.api_key):
+                specs.append(fallback)
+        return specs
+
+    @staticmethod
+    def _is_rate_limit_error(exc: Exception) -> bool:
+        """Return True if the exception represents a rate-limit / quota error."""
+        exc_type = type(exc).__name__
+        # Anthropic
+        if exc_type == "RateLimitError":
+            return True
+        # OpenAI SDK
+        if hasattr(exc, "status_code") and exc.status_code == 429:
+            return True
+        # httpx (Ollama)
+        if hasattr(exc, "response") and hasattr(exc.response, "status_code"):
+            return exc.response.status_code == 429
+        # Generic string check
+        return "429" in str(exc) or "rate limit" in str(exc).lower()
+
 
     # ------------------------------------------------------------------
     # Embedding
@@ -120,32 +184,62 @@ class LLMClient:
     ) -> dict:
         if spec.provider == "anthropic":
             return self._chat_anthropic(spec, messages, max_tokens, temperature, **kwargs)
-        elif spec.provider in ("openai", "openrouter", "nvidia", "moonshot"):
+        elif spec.provider in _OPENAI_COMPAT_PROVIDERS:
             return self._chat_openai_compat(spec, messages, max_tokens, temperature, **kwargs)
         elif spec.provider == "ollama":
             return self._chat_ollama(spec, messages, max_tokens, temperature)
         else:
             raise ValueError(f"Unknown provider: {spec.provider}")
 
-    async def _dispatch_chat_stream(self, spec, messages, max_tokens, temperature):
+    async def _dispatch_chat_stream(self, spec, messages, max_tokens, temperature, cancel_event=None):
         # If model is configured to not stream, fall back to a single non-streaming call
         if not spec.stream:
             result = self._dispatch_chat(spec, messages, max_tokens, temperature)
             yield result.get("content", "")
             return
         if spec.provider == "anthropic":
-            async for chunk in self._stream_anthropic(spec, messages, max_tokens, temperature):
+            async for chunk in self._stream_anthropic(spec, messages, max_tokens, temperature, cancel_event=cancel_event):
                 yield chunk
-        elif spec.provider in ("openai", "openrouter", "nvidia", "moonshot"):
-            async for chunk in self._stream_openai_compat(spec, messages, max_tokens, temperature):
+        elif spec.provider in _OPENAI_COMPAT_PROVIDERS:
+            async for chunk in self._stream_openai_compat(spec, messages, max_tokens, temperature, cancel_event=cancel_event):
                 yield chunk
         elif spec.provider == "ollama":
-            async for chunk in self._stream_ollama(spec, messages, max_tokens, temperature):
+            async for chunk in self._stream_ollama(spec, messages, max_tokens, temperature, cancel_event=cancel_event):
                 yield chunk
         else:
             # Fallback: non-streaming
             result = self._dispatch_chat(spec, messages, max_tokens, temperature)
             yield result.get("content", "")
+
+    # -- Helpers --
+
+    @staticmethod
+    def _convert_images_for_openai(messages: list) -> list:
+        """Convert Anthropic-format image blocks to OpenAI image_url format."""
+        converted = []
+        for msg in messages:
+            content = msg.get("content")
+            if isinstance(content, list):
+                new_content = []
+                for block in content:
+                    if (
+                        isinstance(block, dict)
+                        and block.get("type") == "image"
+                        and block.get("source", {}).get("type") == "base64"
+                    ):
+                        src = block["source"]
+                        mime = src.get("media_type", "image/jpeg")
+                        data = src.get("data", "")
+                        new_content.append({
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime};base64,{data}"},
+                        })
+                    else:
+                        new_content.append(block)
+                converted.append({**msg, "content": new_content})
+            else:
+                converted.append(msg)
+        return converted
 
     # -- Anthropic --
 
@@ -165,6 +259,14 @@ class LLMClient:
 
         if spec.top_p != 1.0:
             kwargs.setdefault("top_p", spec.top_p)
+        # Extended thinking support
+        if spec.has_thinking:
+            thinking_param = (
+                {"type": "enabled", "budget_tokens": spec.thinking_budget_tokens}
+                if spec.thinking_enabled
+                else {"type": "disabled"}
+            )
+            kwargs.setdefault("thinking", thinking_param)
         response = client.messages.create(
             model=spec.model,
             max_tokens=max_tok,
@@ -173,15 +275,19 @@ class LLMClient:
             messages=filtered,
             **kwargs,
         )
+        # Extract text content (skip thinking blocks)
+        text = "".join(
+            block.text for block in response.content if hasattr(block, "text")
+        )
         return {
-            "content": response.content[0].text,
+            "content": text,
             "tokens_in": response.usage.input_tokens,
             "tokens_out": response.usage.output_tokens,
             "model": spec.model,
             "provider": spec.provider,
         }
 
-    async def _stream_anthropic(self, spec, messages, max_tokens, temperature):
+    async def _stream_anthropic(self, spec, messages, max_tokens, temperature, cancel_event=None):
         import anthropic
         client = anthropic.AsyncAnthropic(api_key=spec.api_key or None)
         max_tok = max_tokens or 8096
@@ -197,6 +303,13 @@ class LLMClient:
         extra: dict = {}
         if spec.top_p != 1.0:
             extra["top_p"] = spec.top_p
+        # Extended thinking support
+        if spec.has_thinking:
+            extra["thinking"] = (
+                {"type": "enabled", "budget_tokens": spec.thinking_budget_tokens}
+                if spec.thinking_enabled
+                else {"type": "disabled"}
+            )
         async with client.messages.stream(
             model=spec.model,
             max_tokens=max_tok,
@@ -206,6 +319,8 @@ class LLMClient:
             **extra,
         ) as stream:
             async for text in stream.text_stream:
+                if cancel_event and cancel_event.is_set():
+                    break
                 yield text
 
     # -- OpenAI / OpenRouter --
@@ -224,7 +339,7 @@ class LLMClient:
 
         response = client.chat.completions.create(
             model=spec.model,
-            messages=messages,
+            messages=self._convert_images_for_openai(messages),
             max_tokens=max_tok,
             temperature=temperature,
             top_p=spec.top_p,
@@ -238,7 +353,7 @@ class LLMClient:
             "provider": spec.provider,
         }
 
-    async def _stream_openai_compat(self, spec, messages, max_tokens, temperature):
+    async def _stream_openai_compat(self, spec, messages, max_tokens, temperature, cancel_event=None):
         import openai
         client_kwargs: dict = {}
         if spec.api_key:
@@ -251,7 +366,7 @@ class LLMClient:
 
         stream = await client.chat.completions.create(
             model=spec.model,
-            messages=messages,
+            messages=self._convert_images_for_openai(messages),
             max_tokens=max_tokens or 4096,
             temperature=temperature,
             top_p=spec.top_p,
@@ -259,6 +374,8 @@ class LLMClient:
         )
         in_think_block = False
         async for chunk in stream:
+            if cancel_event and cancel_event.is_set():
+                break
             delta = chunk.choices[0].delta.content
             if not delta:
                 continue
@@ -298,7 +415,7 @@ class LLMClient:
             "provider": spec.provider,
         }
 
-    async def _stream_ollama(self, spec, messages, max_tokens, temperature):
+    async def _stream_ollama(self, spec, messages, max_tokens, temperature, cancel_event=None):
         import httpx
         import json
         base = os.environ.get("OLLAMA_BASE_URL") or spec.base_url or "http://localhost:11434"
@@ -312,6 +429,8 @@ class LLMClient:
             async with client.stream("POST", f"{base}/api/chat", json=payload) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
+                    if cancel_event and cancel_event.is_set():
+                        break
                     if not line:
                         continue
                     try:

@@ -41,6 +41,10 @@ class ModelSpec:
     top_p: float = 1.0
     stream: bool = True
     extra_pricing: dict = field(default_factory=dict)
+    # Thinking / extended reasoning
+    has_thinking: bool = False
+    thinking_enabled: bool = True
+    thinking_budget_tokens: int = 8000
 
 
 class ProviderRegistry:
@@ -49,6 +53,7 @@ class ProviderRegistry:
     def __init__(self, config: dict) -> None:
         self._providers_cfg: dict = config.get("providers", {})
         self._defaults: dict = config.get("defaults", {})
+        self._fallback_chain: list[str] = config.get("fallback_chain", [])
         self._models: dict[str, ModelSpec] = {}
         self._load()
 
@@ -79,6 +84,9 @@ class ProviderRegistry:
                     top_p=float(model_cfg.get("top_p", 1.0)),
                     stream=bool(model_cfg.get("stream", True)),
                     extra_pricing=model_cfg.get("extra_pricing", {}),
+                    has_thinking=bool(model_cfg.get("has_thinking", False)),
+                    thinking_enabled=bool(model_cfg.get("thinking_enabled", True)),
+                    thinking_budget_tokens=int(model_cfg.get("thinking_budget_tokens", 8000)),
                 )
 
         logger.debug("Loaded %d model specs", len(self._models))
@@ -141,6 +149,10 @@ class ProviderRegistry:
         """Add or update a model spec in the registry."""
         self._models[key] = spec
         logger.info("Model %s added/updated in registry", key)
+
+    def get_fallback_chain(self) -> list[str]:
+        """Return the configured global fallback chain (list of provider/model keys)."""
+        return self._fallback_chain
 
     def reload_from_yaml(self, config: dict) -> None:
         """Reload the registry from a new config dict (clears existing models)."""

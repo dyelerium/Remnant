@@ -33,6 +33,9 @@ async def list_providers(request: Request) -> dict:
             "temperature": s.temperature,
             "top_p": s.top_p,
             "stream": s.stream,
+            "has_thinking": s.has_thinking,
+            "thinking_enabled": s.thinking_enabled,
+            "thinking_budget_tokens": s.thinking_budget_tokens,
         }
         for s in registry.list_models()
     ]
@@ -317,6 +320,7 @@ async def save_model_config(body: ModelConfigRequest, request: Request) -> dict:
         registry.reload_from_yaml({
             "providers": config.get("providers", {}),
             "defaults": merged_defaults,
+            "fallback_chain": config.get("fallback_chain", registry._fallback_chain),
         })
 
         return {"status": "saved", "key": f"{body.provider}/{body.model}"}
