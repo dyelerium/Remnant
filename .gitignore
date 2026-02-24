@@ -69,3 +69,7 @@ Thumbs.db
 # Workspace (runtime artifacts)
 workspace/
 /tmp/remnant/
+
+# uv (not used by this project)
+uv.lock
+.uv/
