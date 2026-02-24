@@ -624,8 +624,8 @@
                 <tr style="color:var(--text-muted);border-bottom:1px solid var(--border)">
                   <th style="text-align:left;padding:6px 4px;font-weight:500">Model</th>
                   <th style="text-align:right;padding:6px 4px;font-weight:500">Context</th>
-                  <th style="text-align:right;padding:6px 4px;font-weight:500">$/1K in</th>
-                  <th style="text-align:right;padding:6px 4px;font-weight:500">$/1K out</th>
+                  <th style="text-align:right;padding:6px 4px;font-weight:500">$/1M in</th>
+                  <th style="text-align:right;padding:6px 4px;font-weight:500">$/1M out</th>
                   <th style="text-align:center;padding:6px 4px;font-weight:500">Vision</th>
                   <th style="text-align:center;padding:6px 4px;font-weight:500">Default?</th>
                   <th style="text-align:center;padding:6px 4px;font-weight:500"></th>
@@ -640,9 +640,9 @@
                     <td style="padding:7px 4px;text-align:right;color:var(--text-dim)"
                         x-text="(m.context_window/1000).toFixed(0) + 'k'"></td>
                     <td style="padding:7px 4px;text-align:right;color:var(--text-dim)"
-                        x-text="m.cost_per_1k_input ? '$' + m.cost_per_1k_input.toFixed(5) : 'free'"></td>
+                        x-text="m.cost_per_1k_input ? '$' + (m.cost_per_1k_input * 1000).toFixed(3) : 'free'"></td>
                     <td style="padding:7px 4px;text-align:right;color:var(--text-dim)"
-                        x-text="m.cost_per_1k_output ? '$' + m.cost_per_1k_output.toFixed(5) : 'free'"></td>
+                        x-text="m.cost_per_1k_output ? '$' + (m.cost_per_1k_output * 1000).toFixed(3) : 'free'"></td>
                     <td style="padding:7px 4px;text-align:center" x-text="m.has_vision ? '✓' : '—'"></td>
                     <td style="padding:7px 4px;text-align:center">
                       <button x-show="settingsData.default_model !== m.key"
@@ -724,16 +724,16 @@
                             </div>
                           </div>
                           <div class="form-group" style="margin:0">
-                            <label class="form-label" style="font-size:11px">Custom $/1K input</label>
-                            <input class="form-input" type="number" min="0" step="0.00001" style="font-size:12px"
-                                   :value="modelConfigForm[m.key]?.cost_per_1k_input ?? m.cost_per_1k_input ?? 0"
-                                   @input="setModelConfigField(m.key, 'cost_per_1k_input', +$event.target.value)" />
+                            <label class="form-label" style="font-size:11px">Custom $/1M input</label>
+                            <input class="form-input" type="number" min="0" step="0.01" style="font-size:12px"
+                                   :value="((modelConfigForm[m.key]?.cost_per_1k_input ?? m.cost_per_1k_input ?? 0) * 1000).toFixed(3)"
+                                   @input="setModelConfigField(m.key, 'cost_per_1k_input', +$event.target.value / 1000)" />
                           </div>
                           <div class="form-group" style="margin:0">
-                            <label class="form-label" style="font-size:11px">Custom $/1K output</label>
-                            <input class="form-input" type="number" min="0" step="0.00001" style="font-size:12px"
-                                   :value="modelConfigForm[m.key]?.cost_per_1k_output ?? m.cost_per_1k_output ?? 0"
-                                   @input="setModelConfigField(m.key, 'cost_per_1k_output', +$event.target.value)" />
+                            <label class="form-label" style="font-size:11px">Custom $/1M output</label>
+                            <input class="form-input" type="number" min="0" step="0.01" style="font-size:12px"
+                                   :value="((modelConfigForm[m.key]?.cost_per_1k_output ?? m.cost_per_1k_output ?? 0) * 1000).toFixed(3)"
+                                   @input="setModelConfigField(m.key, 'cost_per_1k_output', +$event.target.value / 1000)" />
                           </div>
                         </div>
                         <div style="display:flex;gap:8px;align-items:center">
