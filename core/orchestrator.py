@@ -49,6 +49,7 @@ class Orchestrator:
         memory_context: str = "",
         cancel_event: Optional[asyncio.Event] = None,
         images: Optional[list] = None,
+        budget_mode: bool = False,
     ) -> AsyncIterator[str]:
         """
         Process an incoming message, streaming response chunks.
@@ -96,6 +97,7 @@ class Orchestrator:
             channel=channel,
             cancel_event=cancel_event,
             images=images,
+            budget_mode=budget_mode,
         ):
             yield chunk
 

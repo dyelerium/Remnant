@@ -229,6 +229,95 @@ async def update_routing(body: dict, request: Request) -> dict:
     return {"status": "updated", "routing": body}
 
 
+_SECURITY_YAML = Path("/app/config/security.yaml") if Path("/app/config").exists() else Path("config/security.yaml")
+
+
+@router.get("/admin/security/config")
+async def get_security_config(request: Request) -> dict:
+    """Return the full security.yaml as JSON."""
+    path = _SECURITY_YAML
+    if not path.exists():
+        path = Path("config/security.yaml")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return {}
+
+
+@router.put("/admin/security/config")
+async def update_security_config(body: dict, request: Request) -> dict:
+    """Persist security config to security.yaml and hot-reload the running SecurityManager."""
+    path = _SECURITY_YAML
+    if not path.exists():
+        path = Path("config/security.yaml")
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(body, f, allow_unicode=True)
+    request.app.state.security.reload(body)
+    return {"status": "updated"}
+
+
+_SNAPSHOTS_DIR = Path("/app/snapshots") if Path("/app").exists() else Path("snapshots")
+
+
+@router.get("/admin/snapshots")
+async def list_snapshots() -> dict:
+    """List available config snapshots."""
+    snap_dir = _SNAPSHOTS_DIR
+    snap_dir.mkdir(exist_ok=True)
+    snaps = []
+    for f in sorted(snap_dir.glob("config-*.tar.gz"), reverse=True):
+        stat = f.stat()
+        snaps.append({
+            "name": f.name,
+            "ts": int(stat.st_mtime),
+            "size_kb": round(stat.st_size / 1024, 1),
+        })
+    return {"snapshots": snaps}
+
+
+@router.post("/admin/snapshots/{name}/restore")
+async def restore_snapshot(name: str, request: Request) -> dict:
+    """Extract a snapshot back to /app/config/ then restart the container."""
+    if "/" in name or ".." in name:
+        raise HTTPException(status_code=400, detail="Invalid snapshot name")
+    snap_path = _SNAPSHOTS_DIR / name
+    if not snap_path.exists():
+        raise HTTPException(status_code=404, detail=f"Snapshot {name!r} not found")
+
+    config_dir = Path("/app/config") if Path("/app/config").exists() else Path("config")
+    with tarfile.open(snap_path, "r:gz") as tar:
+        for member in tar.getmembers():
+            if member.name.startswith("/") or ".." in member.name:
+                raise HTTPException(status_code=400, detail="Invalid archive path")
+        tar.extractall(str(config_dir))
+
+    # Trigger container restart via Docker socket (best-effort)
+    try:
+        import docker
+        client = docker.from_env()
+        container = client.containers.get(os.environ.get("HOSTNAME", "remnant"))
+        # Restart in background so response is sent first
+        import asyncio
+        asyncio.get_event_loop().call_later(1.0, lambda: container.restart())
+    except Exception:
+        pass  # Docker SDK not available or container not found — config still restored
+
+    return {"status": "restoring", "snapshot": name}
+
+
+@router.delete("/admin/snapshots/{name}")
+async def delete_snapshot(name: str) -> dict:
+    """Delete a config snapshot."""
+    if "/" in name or ".." in name:
+        raise HTTPException(status_code=400, detail="Invalid snapshot name")
+    snap_path = _SNAPSHOTS_DIR / name
+    if not snap_path.exists():
+        raise HTTPException(status_code=404, detail=f"Snapshot {name!r} not found")
+    snap_path.unlink()
+    return {"status": "deleted", "name": name}
+
+
 @router.get("/admin/audit")
 async def get_audit_log(
     request: Request,

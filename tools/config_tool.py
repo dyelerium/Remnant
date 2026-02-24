@@ -129,6 +129,22 @@ class ConfigTool(BaseTool):
                 result[uc] = None
         return ToolResult(tool_name=self.name, success=True, output=result)
 
+    def _snapshot_configs(self) -> None:
+        """Save a .tar.gz snapshot of all *.yaml files in config_dir. Keeps last 20."""
+        import tarfile
+        import time as _time
+        snap_dir = self._config_dir.parent / "snapshots"
+        snap_dir.mkdir(exist_ok=True)
+        ts = int(_time.time())
+        snap_path = snap_dir / f"config-{ts}.tar.gz"
+        with tarfile.open(snap_path, "w:gz") as tar:
+            for f in self._config_dir.glob("*.yaml"):
+                tar.add(f, arcname=f.name)
+        # Prune to last 20 snapshots
+        existing = sorted(snap_dir.glob("config-*.tar.gz"))
+        for old in existing[:-20]:
+            old.unlink()
+
     async def _set_model(self, use_case: str, model_key: str, persist: bool) -> ToolResult:
         if not model_key:
             return ToolResult(
@@ -155,6 +171,7 @@ class ConfigTool(BaseTool):
         if persist:
             yaml_path = self._config_dir / "llm_providers.yaml"
             try:
+                self._snapshot_configs()
                 with open(yaml_path, "r", encoding="utf-8") as f:
                     config = yaml.safe_load(f) or {}
                 config.setdefault("defaults", {})[use_case] = model_key
@@ -207,6 +224,7 @@ class ConfigTool(BaseTool):
     async def _reload_config(self) -> ToolResult:
         yaml_path = self._config_dir / "llm_providers.yaml"
         try:
+            self._snapshot_configs()
             with open(yaml_path, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f) or {}
             providers_cfg = {

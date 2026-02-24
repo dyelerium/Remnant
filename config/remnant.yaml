@@ -1,146 +1,118 @@
-# Remnant Framework Configuration
-# All values can be overridden via environment variables (REMNANT_*)
-
-project_name: "remnant"
-memory_root: "./memory"
-
-# Redis connection
-redis:
-  host: "${REDIS_HOST:localhost}"
-  port: 6379
-  db: 0
-  password: null  # Set REDIS_PASSWORD env var
-  decode_responses: false  # Keep binary for embeddings
-  max_connections: 20
-
-# Embedding configuration
+aging:
+  ttl_extension_days: 30
+  ttl_extension_on_use: true
+  useful_score_decay_rate: 0.99
+  useful_score_increment: 1.0
+api:
+  cors_origins:
+  - http://localhost:3000
+  - http://localhost:5173
+  host: 0.0.0.0
+  max_session_age_hours: 24
+  port: 8000
+budget_mode: false
+channels:
+  discord:
+    bot_token: ${DISCORD_BOT_TOKEN}
+    enabled: false
+    guild_id: ${DISCORD_GUILD_ID}
+  telegram:
+    bot_token: ${TELEGRAM_BOT_TOKEN}
+    enabled: false
+  webchat:
+    enabled: true
+  whatsapp:
+    enabled: false
+compaction:
+  llm_model: claude-haiku-4-5-20251001
+  llm_provider: claude
+  summary_target_tokens: 300
+  trigger_token_threshold: 4000
 embedding:
-  provider: "sentence-transformers"  # sentence-transformers | ollama | openai
-  model: "all-MiniLM-L6-v2"         # 384 dims (local, no extra service needed)
+  base_url: ${OLLAMA_BASE_URL:http://localhost:11434}
   dimensions: 384
-  base_url: "${OLLAMA_BASE_URL:http://localhost:11434}"  # Ollama fallback
-
-# LLM configuration
+  model: all-MiniLM-L6-v2
+  provider: sentence-transformers
 llm:
-  primary: "claude"  # claude | ollama | openai
   claude:
-    model: "claude-sonnet-4-6"
+    api_key: ${ANTHROPIC_API_KEY}
     max_tokens: 8096
-    api_key: "${ANTHROPIC_API_KEY}"
+    model: claude-sonnet-4-6
   ollama:
-    model: "llama3.1:8b"
-    base_url: "${OLLAMA_BASE_URL:http://localhost:11434}"
+    base_url: ${OLLAMA_BASE_URL:http://localhost:11434}
     max_tokens: 4096
+    model: llama3.1:8b
   openai:
-    model: "gpt-4o-mini"
-    api_key: "${OPENAI_API_KEY}"
+    api_key: ${OPENAI_API_KEY}
     max_tokens: 4096
-
-# Vector search index
-vector_index:
-  name: "idx:memory_chunks"
-  algorithm: "HNSW"  # HNSW | FLAT
-  distance_metric: "COSINE"
-  hnsw_m: 16
-  hnsw_ef_construction: 200
-  hnsw_ef_runtime: 20
-
-# Retrieval policy
-retrieval:
-  max_tokens: 800
-  max_chunks: 15
-  min_similarity: 0.3
-  hybrid_filter: true
-
-# Memory recording
+    model: gpt-4o-mini
+  primary: claude
+logging:
+  backup_count: 5
+  file: ./logs/remnant.log
+  level: INFO
+  max_size_mb: 50
+memory_root: ./memory
+project_name: remnant
 recording:
   chunk_max_tokens: 300
   chunk_overlap_tokens: 50
   default_ttl_days: 90
-
-# Compaction
-compaction:
-  trigger_token_threshold: 4000
-  summary_target_tokens: 300
-  llm_provider: "claude"
-  llm_model: "claude-haiku-4-5-20251001"
-
-# Aging and reinforcement
-aging:
-  useful_score_increment: 1.0
-  useful_score_decay_rate: 0.99
-  ttl_extension_on_use: true
-  ttl_extension_days: 30
-
-# Security
+redis:
+  db: 0
+  decode_responses: false
+  host: ${REDIS_HOST:localhost}
+  max_connections: 20
+  password: null
+  port: 6379
+retrieval:
+  hybrid_filter: true
+  max_chunks: 15
+  max_tokens: 800
+  min_similarity: 0.3
 security:
-  enable_filter: true
   blocked_patterns:
-    - "ignore all previous instructions"
-    - "you are now a different assistant"
-    - "disregard your system prompt"
-    - "forget everything"
-    - "rm -rf"
-    - "eval("
-    - "exec("
-    - "__import__"
-  suspicious_keywords:
-    - "execute"
-    - "shell"
-    - "admin"
-    - "root"
-    - "sudo"
+  - ignore all previous instructions
+  - you are now a different assistant
+  - disregard your system prompt
+  - forget everything
+  - rm -rf
+  - eval(
+  - exec(
+  - __import__
+  enable_filter: true
   log_blocked_attempts: true
-
-# API server
-api:
-  host: "0.0.0.0"
-  port: 8000
-  cors_origins:
-    - "http://localhost:3000"
-    - "http://localhost:5173"
-  max_session_age_hours: 24
-
-# Tools (enable/disable at startup)
+  suspicious_keywords:
+  - execute
+  - shell
+  - admin
+  - root
+  - sudo
 tools:
-  filesystem:
+  code_exec:
+    allowed_languages:
+    - python
+    - bash
+    - javascript
     enabled: true
+    timeout_seconds: 30
+  filesystem:
     allowed_paths:
-      - "./workspace"
-      - "/tmp/remnant"
+    - ./workspace
+    - /tmp/remnant
+    enabled: true
+  http_client:
+    allowed_domains: []
+    enabled: true
+    timeout_seconds: 30
   web_search:
     enabled: true
-    provider: "duckduckgo"  # duckduckgo | serpapi
     max_results: 10
-  code_exec:
-    enabled: true
-    timeout_seconds: 30
-    allowed_languages:
-      - python
-      - bash
-      - javascript
-  http_client:
-    enabled: true
-    timeout_seconds: 30
-    allowed_domains: []  # Empty = all allowed
-
-# Channels
-channels:
-  webchat:
-    enabled: true
-  telegram:
-    enabled: false
-    bot_token: "${TELEGRAM_BOT_TOKEN}"
-  discord:
-    enabled: false
-    bot_token: "${DISCORD_BOT_TOKEN}"
-    guild_id: "${DISCORD_GUILD_ID}"
-  whatsapp:
-    enabled: false
-
-# Logging
-logging:
-  level: "INFO"
-  file: "./logs/remnant.log"
-  max_size_mb: 50
-  backup_count: 5
+    provider: duckduckgo
+vector_index:
+  algorithm: HNSW
+  distance_metric: COSINE
+  hnsw_ef_construction: 200
+  hnsw_ef_runtime: 20
+  hnsw_m: 16
+  name: idx:memory_chunks

@@ -155,6 +155,7 @@ async def websocket_chat(ws: WebSocket) -> None:
             project_id = data.get("project_id")
             session_id = data.get("session_id", str(uuid.uuid4()))
             images = data.get("images")  # optional [{mime, data}] for vision
+            budget_mode = bool(data.get("budget_mode", False))
             current_session_id = session_id
 
             if not message:
@@ -181,6 +182,7 @@ async def websocket_chat(ws: WebSocket) -> None:
                     memory_context=memory_context,
                     cancel_event=cancel_event,
                     images=images,
+                    budget_mode=budget_mode,
                 ):
                     if cancel_event.is_set():
                         break

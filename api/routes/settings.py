@@ -79,6 +79,7 @@ async def get_settings(request: Request) -> dict:
     except Exception:
         default_model = None
 
+    config = getattr(request.app.state, "config", {})
     return {
         "api_keys": {k: _env_status(k) for k in _API_KEY_VARS},
         "connectors": {
@@ -90,6 +91,7 @@ async def get_settings(request: Request) -> dict:
             "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
             "api_key_set": bool(os.environ.get("OLLAMA_API_KEY", "")),
         },
+        "budget_mode": bool(config.get("budget_mode", False)),
     }
 
 
@@ -318,5 +320,34 @@ async def update_budget(body: BudgetRequest, request: Request) -> dict:
             yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
 
         return {"status": "saved", "global": global_cfg}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# -----------------------------------------------------------------------
+# Budget mode toggle
+# -----------------------------------------------------------------------
+
+class BudgetModeRequest(BaseModel):
+    budget_mode: bool
+
+
+@router.post("/settings/budget-mode")
+async def set_budget_mode(body: BudgetModeRequest, request: Request) -> dict:
+    """Persist budget_mode toggle to remnant.yaml and update running config."""
+    _remnant_yaml = Path("/app/config/remnant.yaml")
+    if not _remnant_yaml.exists():
+        _remnant_yaml = Path("config/remnant.yaml")
+    try:
+        if _remnant_yaml.exists():
+            with open(_remnant_yaml, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            cfg["budget_mode"] = body.budget_mode
+            with open(_remnant_yaml, "w", encoding="utf-8") as f:
+                yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+        # Update running config dict
+        if hasattr(request.app.state, "config"):
+            request.app.state.config["budget_mode"] = body.budget_mode
+        return {"status": "saved", "budget_mode": body.budget_mode}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))

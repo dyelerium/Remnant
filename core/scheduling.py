@@ -16,6 +16,7 @@ class Scheduler:
     - Nightly memory compaction (03:00 UTC)
     - Curator background scan (every 30 minutes)
     - Budget counter cleanup (daily)
+    - Config snapshot (02:30 UTC)
     """
 
     def __init__(
@@ -30,6 +31,8 @@ class Scheduler:
         self.redis = redis_client
         self.config = config
         self._scheduler = None
+        from pathlib import Path
+        self._config_dir = Path("/app/config") if Path("/app/config").exists() else Path("config")
 
     def start(self) -> None:
         """Start APScheduler with all jobs."""
@@ -69,8 +72,18 @@ class Scheduler:
             replace_existing=True,
         )
 
+        # Daily config snapshot at 02:30 UTC
+        self._scheduler.add_job(
+            self._run_config_snapshot,
+            "cron",
+            hour=2,
+            minute=30,
+            id="config_snapshot",
+            replace_existing=True,
+        )
+
         self._scheduler.start()
-        logger.info("[SCHEDULER] Started — compaction@03:00 UTC, curator every 30m")
+        logger.info("[SCHEDULER] Started — compaction@03:00 UTC, curator every 30m, snapshot@02:30 UTC")
 
     def stop(self) -> None:
         if self._scheduler and self._scheduler.running:
@@ -112,6 +125,27 @@ class Scheduler:
                 logger.info("[SCHEDULER] Curator enqueued %d chunks for scoring", len(chunks))
         except Exception as exc:
             logger.error("[SCHEDULER] Curator scan failed: %s", exc)
+
+    async def _run_config_snapshot(self) -> None:
+        """Take a tarball snapshot of all config YAML files."""
+        import tarfile
+        import time as _time
+        from pathlib import Path
+        try:
+            snap_dir = self._config_dir.parent / "snapshots"
+            snap_dir.mkdir(exist_ok=True)
+            ts = int(_time.time())
+            snap_path = snap_dir / f"config-{ts}.tar.gz"
+            with tarfile.open(snap_path, "w:gz") as tar:
+                for f in self._config_dir.glob("*.yaml"):
+                    tar.add(f, arcname=f.name)
+            # Prune to last 20 snapshots
+            existing = sorted(snap_dir.glob("config-*.tar.gz"))
+            for old in existing[:-20]:
+                old.unlink()
+            logger.info("[SCHEDULER] Config snapshot saved: %s", snap_path.name)
+        except Exception as exc:
+            logger.error("[SCHEDULER] Config snapshot failed: %s", exc)
 
     async def _cleanup_old_counters(self) -> None:
         """Remove stale budget counters from Redis."""

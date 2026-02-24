@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 _SESSION_MAX_MESSAGES = 20   # keep last 20 messages (10 user+assistant pairs)
 _SESSION_TTL = 86400          # 24 hours
 
+_COMPLEX_KW = ("analyze", "compare", "reason", "plan", "architecture", "design", "evaluate")
+_CODER_KW   = ("code", "script", "implement", "debug", "refactor", "fix bug", "function", "class")
+_SEARCH_KW  = ("search", "find", "research", "summarize", "look up", "browse", "fetch", "latest")
+
 
 class AgentRuntime:
     """
@@ -56,6 +60,21 @@ class AgentRuntime:
         self._audit = audit_logger
 
     # ------------------------------------------------------------------
+    # Budget-mode use-case selector
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _smart_use_case(message: str) -> str:
+        """Pick the cheapest capable use-case bucket based on prompt complexity."""
+        m = message.lower()
+        tok = len(message.split())
+        if tok > 300 or any(k in m for k in _COMPLEX_KW):
+            return "planning"   # most capable
+        if any(k in m for k in _CODER_KW + _SEARCH_KW):
+            return "chat"       # balanced
+        return "fast"           # cheapest (qwen3:4b, free-tier models)
+
+    # ------------------------------------------------------------------
     # Streaming run
     # ------------------------------------------------------------------
 
@@ -68,6 +87,7 @@ class AgentRuntime:
         channel: str = "websocket",
         cancel_event: Optional[asyncio.Event] = None,
         images: Optional[list] = None,
+        budget_mode: bool = False,
     ) -> AsyncIterator[str]:
         """Execute one agent loop, yielding response chunks."""
         set_logging_context(
@@ -164,10 +184,11 @@ class AgentRuntime:
 
             # Buffer this LLM call
             buffered_parts: list[str] = []
+            use_case = self._smart_use_case(message) if budget_mode else "chat"
             try:
                 async for chunk in self.llm.chat_stream(
                     messages=messages,
-                    use_case="chat",
+                    use_case=use_case,
                     project_id=project_id,
                     cancel_event=cancel_event,
                 ):

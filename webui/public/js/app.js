@@ -208,6 +208,9 @@ document.addEventListener('alpine:init', () => {
     agentsEdits: {},    // local edits buffer keyed by agent name
     allTools: ['filesystem', 'web_search', 'code_exec', 'http_client', 'memory_retrieve', 'memory_record', 'config', 'shell', 'n8n'],
 
+    /* --- Budget mode (persists across send; toggled locally or saved globally) --- */
+    budgetModeEnabled: false,
+
     /* --- Admin tab --- */
     adminLoaded: false,
     budgetForm: { max_cost_usd_per_day: null, max_tokens_per_day: null },
@@ -215,6 +218,12 @@ document.addEventListener('alpine:init', () => {
     agentGraph: null, laneStatus: null,
     securityTestInput: '', securityTestResult: null,
     blockedLog: [],
+
+    /* --- Security tab --- */
+    securityConfig: null,
+
+    /* --- Snapshots (Backup tab) --- */
+    snapshots: [],
 
     /* --- Scheduler tab --- */
     scheduleJobs: [],
@@ -565,6 +574,7 @@ document.addEventListener('alpine:init', () => {
           project_id: this.activeProjectId || null,
           session_id: chat.sessionId,
           images: sendImages,
+          budget_mode: this.budgetModeEnabled,
         }));
       } else {
         await this.sendViaSSE(text, chat, agentMsg, sendImages);
@@ -930,6 +940,10 @@ document.addEventListener('alpine:init', () => {
           // Pre-populate Ollama URL from settings
           if (this.settingsData.ollama?.base_url && !this.ollamaUrl) {
             this.ollamaUrl = this.settingsData.ollama.base_url;
+          }
+          // Sync budget mode global default
+          if (this.settingsData.budget_mode !== undefined) {
+            this.budgetModeEnabled = this.settingsData.budget_mode;
           }
         }
       } catch (_) {}
@@ -1579,6 +1593,16 @@ document.addEventListener('alpine:init', () => {
       } catch (_) {}
     },
 
+    async saveBudgetMode() {
+      try {
+        await fetch('/api/settings/budget-mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ budget_mode: this.budgetModeEnabled }),
+        });
+      } catch (_) {}
+    },
+
     async triggerCompaction() {
       this.compacting = true;
       this.compactionResult = null;
@@ -1624,6 +1648,30 @@ document.addEventListener('alpine:init', () => {
         if (resp.ok) {
           const data = await resp.json();
           this.blockedLog = data.blocked || [];
+        }
+      } catch (_) {}
+    },
+
+    /* ================================================================
+       SECURITY TAB
+       ================================================================ */
+    async loadSecurityConfig() {
+      try {
+        const resp = await fetch('/api/admin/security/config');
+        if (resp.ok) this.securityConfig = await resp.json();
+      } catch (_) {}
+    },
+
+    async saveSecurityConfig() {
+      try {
+        const resp = await fetch('/api/admin/security/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.securityConfig),
+        });
+        if (resp.ok) {
+          const btn = event?.target;
+          if (btn) { btn.textContent = '✓ Saved'; setTimeout(() => { btn.textContent = 'Save security config'; }, 1500); }
         }
       } catch (_) {}
     },
@@ -1682,6 +1730,42 @@ document.addEventListener('alpine:init', () => {
         this.backupRestoring = false;
         event.target.value = '';
       }
+    },
+
+    /* ================================================================
+       SNAPSHOTS (Config Backup)
+       ================================================================ */
+    async loadSnapshots() {
+      try {
+        const resp = await fetch('/api/admin/snapshots');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.snapshots = data.snapshots || [];
+        }
+      } catch (_) {}
+    },
+
+    async restoreSnapshot(name) {
+      if (!confirm(`Restore config snapshot "${name}"? The app will restart automatically.`)) return;
+      try {
+        const resp = await fetch(`/api/admin/snapshots/${encodeURIComponent(name)}/restore`, { method: 'POST' });
+        if (resp.ok) {
+          alert('Restore initiated. The app is restarting — reload the page in a few seconds.');
+        } else {
+          const data = await resp.json();
+          alert(`Error: ${data.detail || 'Restore failed'}`);
+        }
+      } catch (e) {
+        alert(`Error: ${e.message}`);
+      }
+    },
+
+    async deleteSnapshot(name) {
+      if (!confirm(`Delete snapshot "${name}"?`)) return;
+      try {
+        const resp = await fetch(`/api/admin/snapshots/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        if (resp.ok) await this.loadSnapshots();
+      } catch (_) {}
     },
 
     /* ================================================================

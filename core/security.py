@@ -190,6 +190,10 @@ class SecurityManager:
                 channel=channel,
             )
 
+    def reload(self, config: dict) -> None:
+        """Hot-reload all patterns and policies without app restart."""
+        self.__init__(self.redis, config, self._audit)
+
     def get_blocked_log(self, limit: int = 50) -> list[dict]:
         """Retrieve recent blocked attempts from Redis."""
         pattern = f"{self._blocked_prefix}:*"

@@ -609,6 +609,24 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.budget-chip {
+  font-size: 14px;
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 6px;
+  align-self: flex-end;
+  margin-bottom: 4px;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity var(--transition), background var(--transition), border-color var(--transition);
+}
+.budget-chip:hover { opacity: 0.7; }
+.budget-chip.active {
+  opacity: 1;
+  background: rgba(16,185,129,0.15);
+  border-color: rgba(16,185,129,0.5);
+}
 .input-pill .btn-stop {
   height: 30px;
   padding: 0 10px;

@@ -385,6 +385,9 @@
           :disabled="isStreaming" @focus="inputFocused=true" @blur="inputFocused=false"></textarea>
         <div class="input-right">
           <span class="model-chip" x-text="shortModelName" x-show="shortModelName"></span>
+          <button class="budget-chip" :class="{ active: budgetModeEnabled }"
+                  @click="budgetModeEnabled = !budgetModeEnabled"
+                  title="Budget mode: auto-select cheapest capable model">💰</button>
           <button class="btn-stop" @click="stop()" x-show="isStreaming" title="Stop (Esc)">■</button>
           <button class="btn-send" @click="send()" :disabled="isStreaming || !inputText.trim()"
                   x-show="!isStreaming" title="Send (Enter)">➤</button>
@@ -520,7 +523,10 @@
         <div class="settings-nav-item" :class="{ active: settingsTab === 'audit' }" @click="settingsTab = 'audit'; loadAuditLog()">
           <span>📋</span> Audit
         </div>
-        <div class="settings-nav-item" :class="{ active: settingsTab === 'backup' }" @click="settingsTab = 'backup'">
+        <div class="settings-nav-item" :class="{ active: settingsTab === 'security' }" @click="settingsTab = 'security'; loadSecurityConfig()">
+          <span>🛡️</span> Security
+        </div>
+        <div class="settings-nav-item" :class="{ active: settingsTab === 'backup' }" @click="settingsTab = 'backup'; loadSnapshots()">
           <span>💾</span> Backup
         </div>
         <div class="settings-nav-item" :class="{ active: settingsTab === 'about' }" @click="settingsTab = 'about'">
@@ -586,7 +592,14 @@
 
         <!-- Models -->
         <div x-show="settingsTab === 'models'" style="display:none">
-          <h3 class="settings-section-title">Model Configuration</h3>
+          <div style="display:flex;align-items:center;margin-bottom:4px">
+            <h3 class="settings-section-title" style="margin:0">Model Configuration</h3>
+            <button class="btn-secondary" style="font-size:12px;padding:4px 10px;margin-left:auto;display:flex;align-items:center;gap:4px"
+                    @click="refreshProviderModels()" :disabled="modelRefreshing">
+              <span x-show="modelRefreshing" class="spinner" style="width:10px;height:10px;border-width:1.5px"></span>
+              <span>↻ Refresh from API</span>
+            </button>
+          </div>
           <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">
             Default chat model: <strong x-text="settingsData.default_model || 'not set'"></strong>
           </p>
@@ -601,11 +614,6 @@
                 <span x-text="tab"></span>
               </button>
             </template>
-            <button class="btn-secondary" style="font-size:12px;padding:4px 10px;margin-left:auto;display:flex;align-items:center;gap:4px"
-                    @click="refreshProviderModels()" :disabled="modelRefreshing">
-              <span x-show="modelRefreshing" class="spinner" style="width:10px;height:10px;border-width:1.5px"></span>
-              <span>↻ Refresh from API</span>
-            </button>
           </div>
 
           <!-- Merge diff banner -->
@@ -1029,12 +1037,83 @@
 
           <template x-if="agentsData && agentsData.agents">
             <div>
+              <!-- Delegation callout -->
+              <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;line-height:1.6">
+                <div style="font-weight:600;color:var(--text);margin-bottom:6px">Agent types &amp; delegation</div>
+                <div style="color:var(--text-dim)">
+                  <span style="color:var(--accent);font-weight:500">default</span> — handles all user messages; can delegate sub-tasks (max_depth: 3 = up to 3 levels deep).<br>
+                  <span style="color:var(--accent);font-weight:500">coder</span> — spawned automatically for code tasks (max_depth: 1 = runs tools, no further delegation).<br>
+                  <span style="color:var(--accent);font-weight:500">researcher</span> — spawned for search/research tasks (max_depth: 1).<br>
+                  <span style="color:var(--text-muted)">When max_depth = 1 an agent runs only tools — it never spawns sub-agents.</span>
+                </div>
+              </div>
+
+              <!-- Default agent (rendered first with accent border) -->
+              <template x-if="agentsData.agents['default']">
+                <div style="border:2px solid var(--accent);border-radius:8px;padding:14px;margin-bottom:12px;background:var(--bg2)">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                    <div style="font-size:14px;font-weight:600;color:var(--text)" x-text="agentsData.agents['default'].name || 'default'"></div>
+                    <div style="font-size:11px;color:var(--text-muted);background:var(--bg4);padding:2px 8px;border-radius:10px">default</div>
+                    <span style="font-size:11px;color:var(--accent);background:rgba(124,58,237,0.12);padding:2px 8px;border-radius:10px;font-weight:600">★ Default</span>
+                  </div>
+                  <div class="form-group" style="margin-bottom:10px">
+                    <label class="form-label" style="font-size:11px">Description</label>
+                    <input class="form-input" type="text" style="font-size:12px"
+                           :value="agentsData.agents['default'].description || ''"
+                           @change="setAgentField('default', 'description', $event.target.value)" />
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                    <div class="form-group" style="margin:0">
+                      <label class="form-label" style="font-size:11px">Model</label>
+                      <select class="form-input" style="font-size:12px"
+                              @change="setAgentField('default', 'model', $event.target.value)">
+                        <template x-for="m in availableModels" :key="m.key">
+                          <option :value="m.key" :selected="(agentsData.agents['default'].llm + '/' + agentsData.agents['default'].model) === m.key || agentsData.agents['default'].model === m.model"
+                                  x-text="m.provider + ' / ' + m.model"></option>
+                        </template>
+                      </select>
+                    </div>
+                    <div class="form-group" style="margin:0">
+                      <label class="form-label" style="font-size:11px;display:flex;align-items:center;gap:4px">Max depth <span class="info-tip" data-tip="Each agent node tracks its current depth (how deep in the delegation chain it is). When depth >= max_depth, it can no longer spawn sub-agents.">ⓘ</span></label>
+                      <input class="form-input" type="number" min="1" max="10" style="font-size:12px"
+                             :value="agentsData.agents['default'].max_depth || 3"
+                             @change="setAgentField('default', 'max_depth', +$event.target.value)" />
+                    </div>
+                  </div>
+                  <div class="form-group" style="margin-bottom:10px">
+                    <label class="form-label" style="font-size:11px">System prompt</label>
+                    <textarea class="form-input" rows="3" style="font-size:12px;resize:vertical;font-family:monospace"
+                              :value="agentsData.agents['default'].system_prompt || ''"
+                              @change="setAgentField('default', 'system_prompt', $event.target.value)"></textarea>
+                  </div>
+                  <div class="form-group" style="margin-bottom:10px">
+                    <label class="form-label" style="font-size:11px">Allowed tools</label>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+                      <template x-for="tool in allTools" :key="tool">
+                        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                          <input type="checkbox"
+                                 :checked="(agentsData.agents['default'].tools || []).includes(tool)"
+                                 @change="toggleAgentTool('default', tool, $event.target.checked)" />
+                          <span x-text="tool"></span>
+                        </label>
+                      </template>
+                    </div>
+                  </div>
+                  <div style="text-align:right">
+                    <button class="btn-primary" style="font-size:12px;padding:4px 14px"
+                            @click="saveAgent('default')">Save</button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Non-default agents -->
               <template x-for="(agent, name) in agentsData.agents" :key="name">
+                <template x-if="name !== 'default'">
                 <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;background:var(--bg2)">
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
                     <div style="font-size:14px;font-weight:600;color:var(--text)" x-text="agent.name || name"></div>
                     <div style="font-size:11px;color:var(--text-muted);background:var(--bg4);padding:2px 8px;border-radius:10px" x-text="name"></div>
-                    <button x-show="name !== 'default'" class="btn-ghost"
+                    <button class="btn-ghost"
                             style="margin-left:auto;font-size:11px;color:var(--err)"
                             @click="deleteAgent(name)">Delete</button>
                   </div>
@@ -1086,6 +1165,7 @@
                             @click="saveAgent(name)">Save</button>
                   </div>
                 </div>
+                </template>
               </template>
 
               <!-- Channel routing -->
@@ -1131,6 +1211,15 @@
               </div>
             </div>
             <button class="btn-primary" style="font-size:12px;padding:4px 14px" @click="saveBudget()">Save budget</button>
+            <div class="form-group" style="margin-top:12px;grid-column:1/-1">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+                <input type="checkbox" x-model="budgetModeEnabled" @change="saveBudgetMode()" />
+                <strong>Budget mode</strong> — auto-pick cheapest model per prompt complexity
+              </label>
+              <p style="font-size:11px;color:var(--text-muted);margin-top:4px;padding-left:22px">
+                Simple → fast/local. Code/research → balanced. Long analysis → powerful.
+              </p>
+            </div>
           </div>
 
           <!-- Compaction -->
@@ -1205,45 +1294,6 @@
                     </tr>
                   </tbody>
                 </table>
-              </div>
-            </template>
-          </div>
-
-          <!-- Security Test -->
-          <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
-            <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">Security Test</h4>
-            <div class="form-group">
-              <label class="form-label" style="font-size:11px">Input to test</label>
-              <textarea class="form-textarea" rows="3" x-model="securityTestInput" placeholder="Enter text to test against security rules…"></textarea>
-            </div>
-            <button class="btn-secondary" style="font-size:12px" @click="testSecurity()">Test</button>
-            <template x-if="securityTestResult">
-              <div style="margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:12px">
-                <div style="display:flex;gap:8px;margin-bottom:6px">
-                  <span :style="securityTestResult.safe ? 'color:#10b981' : 'color:var(--err)'"
-                        x-text="securityTestResult.safe ? '✓ Safe' : '✗ Blocked'"></span>
-                  <span style="color:var(--text-muted)" x-text="securityTestResult.reason || ''"></span>
-                </div>
-                <div x-show="securityTestResult.redacted !== securityTestInput" style="margin-top:6px">
-                  <span style="color:var(--text-muted);font-size:11px">Redacted: </span>
-                  <span style="color:var(--text-dim)" x-text="securityTestResult.redacted"></span>
-                </div>
-              </div>
-            </template>
-          </div>
-
-          <!-- Blocked Log -->
-          <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
-            <div style="display:flex;align-items:center;margin-bottom:8px">
-              <h4 style="font-size:13px;font-weight:600;color:var(--text);margin:0">Blocked Inputs Log</h4>
-              <button class="btn-ghost" style="font-size:11px;margin-left:auto" @click="loadBlockedLog()">↻ Load</button>
-            </div>
-            <div x-show="blockedLog.length === 0" style="font-size:12px;color:var(--text-muted)">No blocked inputs logged.</div>
-            <template x-for="(item, i) in blockedLog" :key="i">
-              <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:12px">
-                <div style="color:var(--err);margin-bottom:2px" x-text="item.reason || 'Blocked'"></div>
-                <div style="color:var(--text-muted)" x-text="item.text ? item.text.slice(0,120) : ''"></div>
-                <div style="color:var(--text-muted);font-size:10px;margin-top:2px" x-text="item.ts || item.timestamp || ''"></div>
               </div>
             </template>
           </div>
@@ -1323,6 +1373,172 @@
           </template>
         </div>
 
+        <!-- Security -->
+        <div x-show="settingsTab === 'security'" style="display:none">
+          <h3 class="settings-section-title">Security</h3>
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px">
+            Configure injection detection, prompt redaction, tool policies, and view blocked inputs.
+            Changes are saved immediately to <code style="background:var(--bg4);padding:2px 5px;border-radius:3px">config/security.yaml</code>.
+          </p>
+
+          <template x-if="securityConfig">
+            <div>
+              <!-- 1. Injection Detection -->
+              <div style="margin-bottom:20px">
+                <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">Injection Detection</h4>
+                <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;margin-bottom:10px">
+                  <input type="checkbox" :checked="securityConfig.injection_detection?.enabled"
+                         @change="securityConfig.injection_detection = securityConfig.injection_detection || {}; securityConfig.injection_detection.enabled = $event.target.checked" />
+                  <strong>Enabled</strong>
+                </label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <div class="form-group" style="margin:0">
+                    <label class="form-label" style="font-size:11px">Blocked patterns (one per line)</label>
+                    <textarea class="form-input" rows="6" style="font-size:11px;font-family:monospace;resize:vertical"
+                              :value="(securityConfig.injection_detection?.blocked_patterns || []).join('\n')"
+                              @change="securityConfig.injection_detection.blocked_patterns = $event.target.value.split('\n').map(s => s.trim()).filter(Boolean)"></textarea>
+                  </div>
+                  <div class="form-group" style="margin:0">
+                    <label class="form-label" style="font-size:11px">Suspicious keywords (≥3 matches = blocked)</label>
+                    <textarea class="form-input" rows="6" style="font-size:11px;font-family:monospace;resize:vertical"
+                              :value="(securityConfig.injection_detection?.suspicious_keywords || []).join('\n')"
+                              @change="securityConfig.injection_detection.suspicious_keywords = $event.target.value.split('\n').map(s => s.trim()).filter(Boolean)"></textarea>
+                  </div>
+                </div>
+                <div class="form-group" style="margin-top:10px">
+                  <label class="form-label" style="font-size:11px">Secret detection patterns (regex, one per line)</label>
+                  <textarea class="form-input" rows="4" style="font-size:11px;font-family:monospace;resize:vertical"
+                            :value="(securityConfig.injection_detection?.secret_patterns || []).join('\n')"
+                            @change="securityConfig.injection_detection.secret_patterns = $event.target.value.split('\n').map(s => s.trim()).filter(Boolean)"></textarea>
+                </div>
+              </div>
+
+              <!-- 2. Prompt Redaction -->
+              <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+                <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">Prompt Redaction</h4>
+                <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;margin-bottom:10px">
+                  <input type="checkbox" :checked="securityConfig.redaction?.enabled"
+                         @change="securityConfig.redaction = securityConfig.redaction || {}; securityConfig.redaction.enabled = $event.target.checked" />
+                  <strong>Enabled</strong> — mask secrets before LLM calls
+                </label>
+                <div style="overflow-x:auto">
+                  <table style="width:100%;border-collapse:collapse;font-size:12px">
+                    <thead><tr style="color:var(--text-muted);border-bottom:1px solid var(--border)">
+                      <th style="text-align:left;padding:5px 4px">Pattern</th>
+                      <th style="text-align:left;padding:5px 4px">Replacement</th>
+                      <th style="text-align:left;padding:5px 4px">Flags</th>
+                      <th style="padding:5px 4px"></th>
+                    </tr></thead>
+                    <tbody>
+                      <template x-for="(rule, i) in (securityConfig.redaction?.patterns || [])" :key="i">
+                        <tr style="border-bottom:1px solid var(--border)">
+                          <td style="padding:4px"><input class="form-input" style="font-size:11px;font-family:monospace" :value="rule.pattern" @change="securityConfig.redaction.patterns[i].pattern = $event.target.value" /></td>
+                          <td style="padding:4px"><input class="form-input" style="font-size:11px" :value="rule.replacement" @change="securityConfig.redaction.patterns[i].replacement = $event.target.value" /></td>
+                          <td style="padding:4px"><input class="form-input" style="font-size:11px;width:100px" :value="rule.flags || ''" @change="securityConfig.redaction.patterns[i].flags = $event.target.value" /></td>
+                          <td style="padding:4px"><button class="btn-ghost" style="font-size:11px;color:var(--err)" @click="securityConfig.redaction.patterns.splice(i,1)">✕</button></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <button class="btn-ghost" style="font-size:11px;margin-top:8px"
+                        @click="securityConfig.redaction = securityConfig.redaction || {patterns:[]}; (securityConfig.redaction.patterns = securityConfig.redaction.patterns || []).push({pattern:'',replacement:'',flags:''})">+ Add rule</button>
+              </div>
+
+              <!-- 3. Tool Policies -->
+              <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+                <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">Tool Policies</h4>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <div class="form-group" style="margin:0">
+                    <label class="form-label" style="font-size:11px">Default policy</label>
+                    <select class="form-input" style="font-size:12px"
+                            :value="securityConfig.tool_policies?.default_policy || 'deny'"
+                            @change="securityConfig.tool_policies = securityConfig.tool_policies || {}; securityConfig.tool_policies.default_policy = $event.target.value">
+                      <option value="deny">deny</option>
+                      <option value="allow">allow</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin:0">
+                    <label class="form-label" style="font-size:11px">Global allowed tools</label>
+                    <textarea class="form-input" rows="4" style="font-size:11px;font-family:monospace;resize:vertical"
+                              :value="(securityConfig.tool_policies?.global_allowed || []).join('\n')"
+                              @change="securityConfig.tool_policies.global_allowed = $event.target.value.split('\n').map(s => s.trim()).filter(Boolean)"></textarea>
+                  </div>
+                </div>
+                <div class="form-group" style="margin-top:10px">
+                  <label class="form-label" style="font-size:11px">Require confirmation (tools needing explicit approval)</label>
+                  <textarea class="form-input" rows="2" style="font-size:11px;font-family:monospace;resize:vertical"
+                            :value="(securityConfig.tool_policies?.require_confirmation || []).join('\n')"
+                            @change="securityConfig.tool_policies.require_confirmation = $event.target.value.split('\n').map(s => s.trim()).filter(Boolean)"></textarea>
+                </div>
+              </div>
+
+              <!-- 4. Logging -->
+              <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+                <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">Logging</h4>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <div class="form-group" style="margin:0">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+                      <input type="checkbox" :checked="securityConfig.logging?.log_blocked_attempts"
+                             @change="securityConfig.logging = securityConfig.logging || {}; securityConfig.logging.log_blocked_attempts = $event.target.checked" />
+                      Log blocked attempts
+                    </label>
+                  </div>
+                  <div class="form-group" style="margin:0">
+                    <label class="form-label" style="font-size:11px">Blocked log TTL (days)</label>
+                    <input class="form-input" type="number" min="1" style="font-size:12px"
+                           :value="securityConfig.logging?.blocked_ttl_days || 30"
+                           @change="securityConfig.logging = securityConfig.logging || {}; securityConfig.logging.blocked_ttl_days = +$event.target.value" />
+                  </div>
+                </div>
+              </div>
+
+              <button class="btn-primary" style="font-size:12px;padding:6px 16px;margin-bottom:20px" @click="saveSecurityConfig()">Save security config</button>
+
+              <!-- 5. Security Test -->
+              <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+                <h4 style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">Security Test</h4>
+                <div class="form-group">
+                  <label class="form-label" style="font-size:11px">Input to test</label>
+                  <textarea class="form-textarea" rows="3" x-model="securityTestInput" placeholder="Enter text to test against security rules…"></textarea>
+                </div>
+                <button class="btn-secondary" style="font-size:12px" @click="testSecurity()">Test</button>
+                <template x-if="securityTestResult">
+                  <div style="margin-top:10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:12px">
+                    <div style="display:flex;gap:8px;margin-bottom:6px">
+                      <span :style="securityTestResult.safe ? 'color:#10b981' : 'color:var(--err)'"
+                            x-text="securityTestResult.safe ? '✓ Safe' : '✗ Blocked'"></span>
+                      <span style="color:var(--text-muted)" x-text="securityTestResult.reason || ''"></span>
+                    </div>
+                    <div x-show="securityTestResult.redacted !== securityTestInput" style="margin-top:6px">
+                      <span style="color:var(--text-muted);font-size:11px">Redacted: </span>
+                      <span style="color:var(--text-dim)" x-text="securityTestResult.redacted"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+
+              <!-- 6. Blocked Log -->
+              <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:20px">
+                <div style="display:flex;align-items:center;margin-bottom:8px">
+                  <h4 style="font-size:13px;font-weight:600;color:var(--text);margin:0">Blocked Inputs Log</h4>
+                  <button class="btn-ghost" style="font-size:11px;margin-left:auto" @click="loadBlockedLog()">↻ Load</button>
+                </div>
+                <div x-show="blockedLog.length === 0" style="font-size:12px;color:var(--text-muted)">No blocked inputs logged.</div>
+                <template x-for="(item, i) in blockedLog" :key="i">
+                  <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:12px">
+                    <div style="color:var(--err);margin-bottom:2px" x-text="item.reason || 'Blocked'"></div>
+                    <div style="color:var(--text-muted)" x-text="item.text ? item.text.slice(0,120) : ''"></div>
+                    <div style="color:var(--text-muted);font-size:10px;margin-top:2px" x-text="item.ts || item.timestamp || ''"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <div x-show="!securityConfig" style="color:var(--text-muted);font-size:12px">Loading security config…</div>
+        </div>
+
         <!-- Backup -->
         <div x-show="settingsTab === 'backup'" style="display:none">
           <h3 class="settings-section-title">Backup &amp; Restore</h3>
@@ -1352,6 +1568,26 @@
             <div x-show="backupRestoreResult" style="margin-top:10px;font-size:12px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px"
                  :style="backupRestoreResult?.startsWith('Error') ? 'color:var(--err)' : 'color:#10b981'"
                  x-text="backupRestoreResult"></div>
+          </div>
+
+          <!-- Config Snapshots -->
+          <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px">
+            <div style="display:flex;align-items:center;margin-bottom:10px">
+              <h4 style="font-size:13px;font-weight:600;color:var(--text);margin:0">Config Snapshots</h4>
+              <span style="font-size:11px;color:var(--text-muted);margin-left:8px">Auto-saved before agent config changes · daily at 02:30 UTC</span>
+              <button class="btn-ghost" style="margin-left:auto;font-size:12px" @click="loadSnapshots()">↻</button>
+            </div>
+            <div x-show="snapshots.length === 0" style="color:var(--text-muted);font-size:12px">No snapshots yet.</div>
+            <template x-for="snap in snapshots" :key="snap.name">
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+                <span style="font-size:12px;font-family:monospace" x-text="snap.name"></span>
+                <span style="font-size:11px;color:var(--text-muted)" x-text="snap.size_kb + ' KB'"></span>
+                <button class="btn-secondary" style="font-size:11px;padding:2px 8px;margin-left:auto"
+                        @click="restoreSnapshot(snap.name)">↩ Restore</button>
+                <button class="btn-ghost" style="font-size:11px;color:var(--err)"
+                        @click="deleteSnapshot(snap.name)">✕</button>
+              </div>
+            </template>
           </div>
         </div>
 
