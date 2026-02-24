@@ -4,7 +4,7 @@ build-backend = "setuptools.backends.legacy:build"
 
 [project]
 name = "remnant"
-version = "0.1.0"
+version = "0.0"
 description = "Remnant — Agentic AI framework with Redis-backed vector memory, Claude MCP, and multi-channel support"
 readme = "README.md"
 requires-python = ">=3.11"

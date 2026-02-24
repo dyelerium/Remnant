@@ -1,0 +1,38 @@
+name: Auto-tag version
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to push tags
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so git describe works
+
+      - name: Compute version
+        id: ver
+        run: |
+          # Count commits since the v0.0 base tag
+          COMMITS=$(git rev-list --count v0.0..HEAD)
+          VERSION="v0.${COMMITS}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Computed version: ${VERSION}"
+
+      - name: Create tag if it does not exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          if git ls-remote --tags origin "refs/tags/${VERSION}" | grep -q "${VERSION}"; then
+            echo "Tag ${VERSION} already exists — skipping"
+          else
+            git tag "${VERSION}"
+            git push origin "${VERSION}"
+            echo "Created and pushed tag ${VERSION}"
+          fi

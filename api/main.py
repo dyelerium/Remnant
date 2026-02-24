@@ -201,10 +201,11 @@ def create_app() -> FastAPI:
     from api.routes.whatsapp import router as whatsapp_router
     from api.mcp_endpoints import router as mcp_router
 
+    from core.version import VERSION
     app = FastAPI(
         title="Remnant Framework",
         description="Redis-backed hierarchical multi-agent framework",
-        version="1.0.0",
+        version=VERSION,
         lifespan=lifespan,
     )
 

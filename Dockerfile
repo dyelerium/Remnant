@@ -19,6 +19,22 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 # Copy application code
 COPY . .
 
+# Bake version into image (git is available; .git is copied above)
+# Format: v0.0-{N}-g{hash} → v0.{N}
+RUN git describe --tags --long 2>/dev/null \
+    | python3 -c "
+import sys
+desc = sys.stdin.read().strip()
+parts = desc.rsplit('-', 2)
+if len(parts) == 3:
+    try:
+        print(f'v0.{int(parts[1])}')
+        raise SystemExit(0)
+    except ValueError:
+        pass
+print('v0.0')
+" > /app/VERSION || echo "v0.0" > /app/VERSION
+
 # Create required directories
 RUN mkdir -p memory/projects logs workspace /tmp/remnant
 

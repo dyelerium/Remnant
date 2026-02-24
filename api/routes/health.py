@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
+from core.version import VERSION
 
 router = APIRouter(tags=["health"])
 
@@ -17,5 +18,5 @@ async def health(request: Request) -> dict:
     return {
         "status": "ok" if redis_ok else "degraded",
         "redis": "up" if redis_ok else "down",
-        "version": "1.0.0",
+        "version": VERSION,
     }

@@ -16,6 +16,7 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from core.version import VERSION
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["mcp"])
@@ -116,7 +117,7 @@ async def mcp_handler(req: MCPRequest, request: Request) -> dict:
         return mcp_result(rid, {
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "remnant", "version": "1.0.0"},
+            "serverInfo": {"name": "remnant", "version": VERSION},
         })
 
     else:
