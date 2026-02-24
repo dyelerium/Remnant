@@ -211,6 +211,23 @@ document.addEventListener('alpine:init', () => {
     /* --- Budget mode (persists across send; toggled locally or saved globally) --- */
     budgetModeEnabled: false,
 
+    /* --- Skills tab --- */
+    skillsList: [],
+    skillsLoading: false,
+    skillTestName: '',
+    skillTestArgs: '{}',
+    skillTestResult: null,
+    skillTestRunning: false,
+    skillImportYaml: '',
+    skillImportStatus: null,
+
+    /* --- MCP tab --- */
+    mcpTools: [],
+    mcpTestTool: '',
+    mcpTestArgs: '{}',
+    mcpTestResult: null,
+    mcpTestRunning: false,
+
     /* --- Admin tab --- */
     adminLoaded: false,
     budgetForm: { max_cost_usd_per_day: null, max_tokens_per_day: null },
@@ -1813,6 +1830,124 @@ document.addEventListener('alpine:init', () => {
         security_block: 'badge-err',
         memory: 'badge-mem',
       }[type] || 'badge-sys';
+    },
+
+    /* ================================================================
+       SKILLS TAB
+       ================================================================ */
+    async loadSkills() {
+      this.skillsLoading = true;
+      try {
+        const resp = await fetch('/api/admin/skills');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.skillsList = data.skills || [];
+        }
+      } catch (_) {
+        this.skillsList = [];
+      } finally {
+        this.skillsLoading = false;
+      }
+    },
+
+    async reloadSkills() {
+      this.skillsLoading = true;
+      try {
+        await fetch('/api/admin/skills/reload', { method: 'POST' });
+        await this.loadSkills();
+      } finally {
+        this.skillsLoading = false;
+      }
+    },
+
+    async runSkillTest(skillName) {
+      this.skillTestRunning = true;
+      this.skillTestResult = null;
+      try {
+        let args = {};
+        try { args = JSON.parse(this.skillTestArgs || '{}'); } catch (_) {}
+        const resp = await fetch('/api/admin/skills/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skill_name: skillName, args }),
+        });
+        this.skillTestResult = await resp.json();
+      } catch (e) {
+        this.skillTestResult = { success: false, error: e.message };
+      } finally {
+        this.skillTestRunning = false;
+      }
+    },
+
+    async importSkill() {
+      this.skillImportStatus = null;
+      try {
+        const resp = await fetch('/api/admin/skills/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ yaml_text: this.skillImportYaml }),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          this.skillImportStatus = { success: true, message: `✓ Imported "${data.name}"` };
+          this.skillImportYaml = '';
+          await this.loadSkills();
+        } else {
+          this.skillImportStatus = { success: false, message: data.detail || 'Import failed' };
+        }
+      } catch (e) {
+        this.skillImportStatus = { success: false, message: e.message };
+      }
+      setTimeout(() => { this.skillImportStatus = null; }, 4000);
+    },
+
+    async deleteSkill(name) {
+      if (!confirm(`Delete skill "${name}"? This will remove the YAML file.`)) return;
+      try {
+        const resp = await fetch(`/api/admin/skills/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        if (resp.ok) {
+          await this.loadSkills();
+        } else {
+          const data = await resp.json();
+          alert(data.detail || 'Delete failed');
+        }
+      } catch (e) {
+        alert(e.message);
+      }
+    },
+
+    /* ================================================================
+       MCP TAB
+       ================================================================ */
+    async loadMcpTools() {
+      try {
+        const resp = await fetch('/api/admin/mcp/tools');
+        if (resp.ok) {
+          const data = await resp.json();
+          this.mcpTools = data.tools || [];
+        }
+      } catch (_) {
+        this.mcpTools = [];
+      }
+    },
+
+    async runMcpTest(toolName) {
+      this.mcpTestRunning = true;
+      this.mcpTestResult = null;
+      try {
+        let args = {};
+        try { args = JSON.parse(this.mcpTestArgs || '{}'); } catch (_) {}
+        const resp = await fetch('/api/admin/mcp/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tool_name: toolName, arguments: args }),
+        });
+        this.mcpTestResult = await resp.json();
+      } catch (e) {
+        this.mcpTestResult = { success: false, error: e.message };
+      } finally {
+        this.mcpTestRunning = false;
+      }
     },
 
     /* ================================================================

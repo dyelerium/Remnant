@@ -333,3 +333,139 @@ async def get_audit_log(
     if event_type:
         entries = [e for e in entries if e.get("event_type") == event_type]
     return {"entries": entries, "count": len(entries)}
+
+
+# ---------------------------------------------------------------------------
+# Skills management
+# ---------------------------------------------------------------------------
+
+class SkillImport(BaseModel):
+    yaml_text: str
+
+
+class SkillTest(BaseModel):
+    skill_name: str
+    args: dict = {}
+
+
+@router.get("/admin/skills")
+async def list_skills(request: Request, tag: Optional[str] = None) -> dict:
+    """Return all registered skills with full detail (including safety level and arg_map)."""
+    registry = request.app.state.skill_registry
+    raw = list(registry._skills.values())
+    if tag:
+        raw = [s for s in raw if tag in s.get("tags", [])]
+    skills = []
+    for s in raw:
+        path = s.get("_path", "")
+        skills.append({
+            "name": s["name"],
+            "description": s["description"],
+            "tool": s["tool"],
+            "tags": s.get("tags", []),
+            "safety_level": s.get("safety_level", "safe"),
+            "arg_map": s.get("arg_map", {}),
+            "requires": s.get("requires", []),
+            "input_schema": s.get("input_schema"),
+            "builtin": "builtin" in path,
+        })
+    return {"skills": skills, "count": len(skills)}
+
+
+@router.post("/admin/skills/reload")
+async def reload_skills(request: Request) -> dict:
+    """Reload all skill YAML files from disk."""
+    registry = request.app.state.skill_registry
+    count = registry.load()
+    return {"status": "reloaded", "count": count}
+
+
+@router.post("/admin/skills/test")
+async def test_skill(body: SkillTest, request: Request) -> dict:
+    """Execute a skill and return the result."""
+    registry = request.app.state.skill_registry
+    tool_registry = request.app.state.tool_registry
+    try:
+        result = await registry.invoke(body.skill_name, body.args, tool_registry)
+        return {"success": True, "result": result}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+@router.post("/admin/skills/import")
+async def import_skill(body: SkillImport, request: Request) -> dict:
+    """Import a new skill from YAML text. Saves to skills/imported/<name>.yml."""
+    import re
+    try:
+        skill = yaml.safe_load(body.yaml_text)
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {exc}")
+
+    if not skill or not isinstance(skill, dict):
+        raise HTTPException(status_code=400, detail="YAML must be a mapping")
+
+    missing = {"name", "description", "tool"} - set(skill.keys())
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Missing required fields: {missing}")
+
+    # Sanitise name for filename
+    safe_name = re.sub(r"[^a-zA-Z0-9_\-]", "_", skill["name"])
+    skills_dir = Path("/app/skills") if Path("/app/skills").exists() else Path("skills")
+    imported_dir = skills_dir / "imported"
+    imported_dir.mkdir(exist_ok=True)
+    dest = imported_dir / f"{safe_name}.yml"
+
+    with open(dest, "w", encoding="utf-8") as f:
+        yaml.dump(skill, f, default_flow_style=False, allow_unicode=True)
+
+    # Hot-reload registry
+    registry = request.app.state.skill_registry
+    registry.load()
+    return {"status": "imported", "name": skill["name"], "path": str(dest)}
+
+
+@router.delete("/admin/skills/{name}")
+async def delete_skill(name: str, request: Request) -> dict:
+    """Delete an imported skill. Built-in skills cannot be deleted."""
+    registry = request.app.state.skill_registry
+    skill = registry.get(name)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+    path = skill.get("_path", "")
+    if "builtin" in path:
+        raise HTTPException(status_code=400, detail="Cannot delete built-in skills")
+    try:
+        Path(path).unlink()
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Skill file not found on disk")
+    registry.load()
+    return {"status": "deleted", "name": name}
+
+
+# ---------------------------------------------------------------------------
+# MCP tools info + test
+# ---------------------------------------------------------------------------
+
+class MCPTestRequest(BaseModel):
+    tool_name: str
+    arguments: dict = {}
+
+
+@router.get("/admin/mcp/tools")
+async def list_mcp_tools(request: Request) -> dict:
+    """Return the list of tools exposed by Remnant's MCP server."""
+    from api.mcp_endpoints import _MCP_TOOLS
+    return {"tools": _MCP_TOOLS, "endpoint": "/mcp", "protocol": "JSON-RPC 2.0"}
+
+
+@router.post("/admin/mcp/test")
+async def test_mcp_tool(body: MCPTestRequest, request: Request) -> dict:
+    """Execute an MCP tool call internally and return the result."""
+    from api.mcp_endpoints import _dispatch_tool
+    import uuid
+    fake_rid = str(uuid.uuid4())[:8]
+    try:
+        result = await _dispatch_tool(fake_rid, body.tool_name, body.arguments, request)
+        return {"success": True, "result": result}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
