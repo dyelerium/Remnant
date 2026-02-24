@@ -19,7 +19,7 @@ agents:
     description: General-purpose AI agent with full memory and tool access
     llm: claude
     max_depth: 3
-    model: ollama/kimi-k2.5:cloud
+    model: ollama/qwen3:4b
     name: Remnant
     system_prompt: "You are Remnant, an autonomous AI agent running inside a Docker
       container with real tool access.\n\n\
