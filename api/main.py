@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from tools.n8n_tool import N8nTool
     from tools.code_exec_tool import CodeExecTool
     from tools.config_tool import ConfigTool
+    from tools.delegate_tool import DelegateTool
 
     # -- Config + logging --
     cfg_loader = get_config()
@@ -100,6 +101,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # -- Tools --
     tools_cfg = config.get("tools", {})
+    delegate_tool = DelegateTool()  # runtime wired below after AgentRuntime construction
     tool_registry = {
         "shell": ShellTool(timeout=tools_cfg.get("code_exec", {}).get("timeout_seconds", 30)),
         "http_client": HTTPTool(
@@ -118,6 +120,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             allowed_languages=tools_cfg.get("code_exec", {}).get("allowed_languages"),
         ),
         "config": ConfigTool(registry=registry, config_dir=Path("/app/config")),
+        "delegate": delegate_tool,
     }
 
     # -- Agent runtime --
@@ -128,6 +131,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     lane_manager = LaneManager(lane_handler)
     planner = Planner(llm, config)
     runtime = AgentRuntime(retriever, recorder, llm, security, curator, config, tool_registry, redis_client, audit_logger=audit)
+    delegate_tool.set_runtime(runtime)  # wire circular ref after construction
     orchestrator = Orchestrator(planner, lane_manager, agent_graph, runtime, config)
 
     # -- Skills --

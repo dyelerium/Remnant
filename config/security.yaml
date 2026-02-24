@@ -66,6 +66,8 @@ tool_policies:
     - filesystem
     - code_exec
     - config
+    - delegate
+    - n8n
 
   # Per-project overrides
   project_overrides: {}
