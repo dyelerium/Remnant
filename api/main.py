@@ -65,13 +65,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     redis_client.ensure_index()
     logger.info("Redis connected and index ready")
 
+    # -- Audit log --
+    from core.audit_log import AuditLogger
+    audit = AuditLogger(redis_client)
+
     # -- Security & Secrets --
     security_cfg = config.get("injection_detection", {})
     security_cfg.update(config.get("redaction", {}))
     security_cfg.update({"tool_policies": config.get("tool_policies", {})})
     security_cfg.update({"logging": config.get("logging", {})})
     # Pass the full config
-    security = SecurityManager(redis_client, config)
+    security = SecurityManager(redis_client, config, audit_logger=audit)
     secrets = SecretsStore(redis_client)
 
     # -- LLM stack --
@@ -123,7 +127,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     agent_graph = AgentGraph()
     lane_manager = LaneManager(lane_handler)
     planner = Planner(llm, config)
-    runtime = AgentRuntime(retriever, recorder, llm, security, curator, config, tool_registry, redis_client)
+    runtime = AgentRuntime(retriever, recorder, llm, security, curator, config, tool_registry, redis_client, audit_logger=audit)
     orchestrator = Orchestrator(planner, lane_manager, agent_graph, runtime, config)
 
     # -- Skills --
@@ -148,7 +152,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _telegram_token = _os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     telegram_bot = None
     if _telegram_token:
-        telegram_bot = TelegramBot(_telegram_token, orchestrator, retriever, broadcast_fn=_broadcast)
+        telegram_bot = TelegramBot(_telegram_token, orchestrator, retriever, broadcast_fn=_broadcast, redis_client=redis_client)
         telegram_bot._task = _asyncio.create_task(telegram_bot.start())
         logger.info("[TELEGRAM] Bot started")
     else:
@@ -176,6 +180,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.agent_graph = agent_graph
     app.state.lane_manager = lane_manager
     app.state.scheduler = scheduler
+    app.state.audit = audit
     app.state.broadcast = _broadcast  # WebSocket push for WhatsApp / server-initiated events
     app.state.telegram_bot = telegram_bot
 

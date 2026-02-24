@@ -16,11 +16,12 @@ class TelegramBot:
 
     name = "telegram"
 
-    def __init__(self, bot_token: str, orchestrator, retriever, broadcast_fn=None) -> None:
+    def __init__(self, bot_token: str, orchestrator, retriever, broadcast_fn=None, redis_client=None) -> None:
         self._token = bot_token
         self._orchestrator = orchestrator
         self._retriever = retriever
         self._broadcast_fn = broadcast_fn
+        self._redis = redis_client
         self._dp = None
         self._bot = None
         self._task: Optional[asyncio.Task] = None  # reference to polling task
@@ -70,17 +71,33 @@ class TelegramBot:
                     await message.answer(response_text[i:i+4000])
 
             # Push conversation to open web UI tabs
+            username = message.from_user.username or message.from_user.first_name or chat_id
+            push_payload = {
+                "session_id": f"tg-{chat_id}",
+                "sender": username,
+                "chat_id": chat_id,
+                "user_message": text,
+                "response": response_text,
+            }
+
+            # Persist to Redis inbox so reconnecting clients can fetch it
+            if self._redis:
+                try:
+                    import json as _json
+                    entry = _json.dumps(push_payload)
+                    await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: (
+                            self._redis.r.lpush("remnant:telegram_inbox", entry),
+                            self._redis.r.ltrim("remnant:telegram_inbox", 0, 99),
+                        ),
+                    )
+                except Exception as _exc:
+                    logger.warning("[TELEGRAM] Redis store failed: %s", _exc)
+
             if self._broadcast_fn:
                 try:
-                    username = message.from_user.username or message.from_user.first_name or chat_id
-                    await self._broadcast_fn({
-                        "type": "tg_message",
-                        "session_id": f"tg-{chat_id}",
-                        "sender": username,
-                        "chat_id": chat_id,
-                        "user_message": text,
-                        "response": response_text,
-                    })
+                    await self._broadcast_fn({"type": "tg_message", **push_payload})
                 except Exception as _exc:
                     logger.warning("[TELEGRAM] Broadcast failed: %s", _exc)
 

@@ -517,6 +517,9 @@
         <div class="settings-nav-item" :class="{ active: settingsTab === 'scheduler' }" @click="settingsTab = 'scheduler'; loadSchedule()">
           <span>⏰</span> Scheduler
         </div>
+        <div class="settings-nav-item" :class="{ active: settingsTab === 'audit' }" @click="settingsTab = 'audit'; loadAuditLog()">
+          <span>📋</span> Audit
+        </div>
         <div class="settings-nav-item" :class="{ active: settingsTab === 'backup' }" @click="settingsTab = 'backup'">
           <span>💾</span> Backup
         </div>
@@ -1349,6 +1352,61 @@
             <div x-show="backupRestoreResult" style="margin-top:10px;font-size:12px;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px"
                  :style="backupRestoreResult?.startsWith('Error') ? 'color:var(--err)' : 'color:#10b981'"
                  x-text="backupRestoreResult"></div>
+          </div>
+        </div>
+
+        <!-- Audit Log -->
+        <div x-show="settingsTab === 'audit'" style="display:none">
+          <h3 class="settings-section-title">Audit Log</h3>
+
+          <!-- Filters -->
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+            <select x-model="auditFilter" @change="loadAuditLog()"
+                    style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;font-size:12px">
+              <option value="">All events</option>
+              <option value="chat">Chat</option>
+              <option value="tool">Tool</option>
+              <option value="security_block">Security block</option>
+              <option value="memory">Memory</option>
+            </select>
+            <input type="date" x-model="auditDate" @change="loadAuditLog()"
+                   style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;font-size:12px" />
+            <button class="btn-secondary" style="font-size:12px;padding:4px 12px" @click="loadAuditLog()">↺ Refresh</button>
+            <span style="font-size:11px;color:var(--text-muted)" x-text="auditEntries.length ? auditEntries.length + ' entries' : 'No entries'"></span>
+          </div>
+
+          <!-- Table -->
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:12px" x-show="auditEntries.length > 0">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border)">
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-weight:600;white-space:nowrap">Time</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-weight:600">Type</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-weight:600">Channel</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-weight:600">Session</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-weight:600">Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="entry in auditEntries" :key="entry._ts">
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <td style="padding:5px 8px;color:var(--text-dim);white-space:nowrap" x-text="auditTs(entry._ts)"></td>
+                    <td style="padding:5px 8px">
+                      <span class="badge" :class="auditBadgeClass(entry.event_type)" x-text="entry.event_type"></span>
+                    </td>
+                    <td style="padding:5px 8px;color:var(--text-dim)" x-text="entry.channel || entry.operation || ''"></td>
+                    <td style="padding:5px 8px;color:var(--text-muted);font-family:var(--mono);font-size:10px"
+                        x-text="(entry.session_id || '').slice(0,16)"></td>
+                    <td style="padding:5px 8px;color:var(--text-dim);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                        :title="entry.message_preview || entry.args_preview || entry.reason || entry.details || ''"
+                        x-text="entry.message_preview || entry.args_preview || entry.reason || entry.details || '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <div x-show="!auditEntries.length" style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px">
+              No audit entries found. Events are recorded as the system processes messages.
+            </div>
           </div>
         </div>
 

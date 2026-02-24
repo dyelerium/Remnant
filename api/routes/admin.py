@@ -227,3 +227,20 @@ async def update_routing(body: dict, request: Request) -> dict:
     with open(_AGENTS_YAML, "w", encoding="utf-8") as f:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
     return {"status": "updated", "routing": body}
+
+
+@router.get("/admin/audit")
+async def get_audit_log(
+    request: Request,
+    limit: int = 100,
+    date: Optional[str] = None,
+    event_type: Optional[str] = None,
+) -> dict:
+    """Return recent audit log entries, optionally filtered by date and event_type."""
+    audit = request.app.state.audit
+    if not audit:
+        return {"entries": [], "error": "Audit logger not initialised"}
+    entries = audit.get_recent(limit=limit, date_str=date)
+    if event_type:
+        entries = [e for e in entries if e.get("event_type") == event_type]
+    return {"entries": entries, "count": len(entries)}

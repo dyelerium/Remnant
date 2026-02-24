@@ -20,9 +20,10 @@ logger = logging.getLogger(__name__)
 class SecurityManager:
     """Unified security enforcement for the Remnant framework."""
 
-    def __init__(self, redis_client, config: dict) -> None:
+    def __init__(self, redis_client, config: dict, audit_logger=None) -> None:
         self.redis = redis_client
         self.config = config
+        self._audit = audit_logger
 
         sec = config.get("injection_detection", {})
         self._enabled: bool = sec.get("enabled", True)
@@ -164,23 +165,30 @@ class SecurityManager:
     # Blocked attempt logging
     # ------------------------------------------------------------------
 
-    def log_blocked(self, text: str, reason: str) -> None:
-        """Log a blocked attempt to Redis."""
-        if not self._log_blocked or not self.redis:
-            return
-        key = f"{self._blocked_prefix}:{int(time.time())}:{hash(text[:100]) & 0xFFFFFFFF}"
-        try:
-            self.redis.r.hset(
-                key,
-                mapping={
-                    "text": text[:500],
-                    "reason": reason,
-                    "timestamp": int(time.time()),
-                },
+    def log_blocked(self, text: str, reason: str, session_id: str = "", channel: str = "") -> None:
+        """Log a blocked attempt to Redis (security log + audit log)."""
+        if self._log_blocked and self.redis:
+            key = f"{self._blocked_prefix}:{int(time.time())}:{hash(text[:100]) & 0xFFFFFFFF}"
+            try:
+                self.redis.r.hset(
+                    key,
+                    mapping={
+                        "text": text[:500],
+                        "reason": reason,
+                        "timestamp": int(time.time()),
+                    },
+                )
+                self.redis.r.expire(key, self._blocked_ttl)
+            except Exception as exc:
+                logger.error("[SECURITY] Failed to log blocked attempt: %s", exc)
+
+        if self._audit:
+            self._audit.log_security(
+                reason=reason,
+                message_preview=text,
+                session_id=session_id,
+                channel=channel,
             )
-            self.redis.r.expire(key, self._blocked_ttl)
-        except Exception as exc:
-            logger.error("[SECURITY] Failed to log blocked attempt: %s", exc)
 
     def get_blocked_log(self, limit: int = 50) -> list[dict]:
         """Retrieve recent blocked attempts from Redis."""

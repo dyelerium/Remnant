@@ -41,6 +41,7 @@ class AgentRuntime:
         config: dict,
         tool_registry: Optional[dict] = None,
         redis_client=None,
+        audit_logger=None,
     ) -> None:
         self.retriever = memory_retriever
         self.recorder = memory_recorder
@@ -52,6 +53,7 @@ class AgentRuntime:
         self._agents_cfg: dict = config.get("agents", {})
         self._max_tool_rounds = 5
         self._redis = redis_client
+        self._audit = audit_logger
 
     # ------------------------------------------------------------------
     # Streaming run
@@ -75,6 +77,15 @@ class AgentRuntime:
             request_id=session_id or "",
         )
         agent_node.status = NodeStatus.RUNNING
+
+        # -- Audit: log incoming chat request --
+        if self._audit:
+            self._audit.log_chat(
+                channel=channel,
+                session_id=session_id or "",
+                user_message=message,
+                project_id=project_id,
+            )
 
         # -- 1. RECALL --
         memory_chunks = await self._recall(message, project_id)
@@ -423,8 +434,23 @@ class AgentRuntime:
                 result_data = result.to_dict() if hasattr(result, "to_dict") else result
                 results.append({"tool": tool_name, "result": result_data})
                 logger.info("[RUNTIME] Tool %r OK: %s", tool_name, str(result_data)[:120])
+                if self._audit:
+                    self._audit.log_tool(
+                        tool_name=tool_name,
+                        session_id=agent_node.agent_id,
+                        args_preview=str(tool_args)[:200],
+                        result_ok=True,
+                    )
             except Exception as exc:
                 logger.error("[RUNTIME] Tool %r failed: %s", tool_name, exc)
                 results.append({"tool": tool_name, "error": str(exc)})
+                if self._audit:
+                    self._audit.log_tool(
+                        tool_name=tool_name,
+                        session_id=agent_node.agent_id,
+                        args_preview=str(tool_args)[:200],
+                        result_ok=False,
+                        error=str(exc),
+                    )
 
         return results

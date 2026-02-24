@@ -224,6 +224,11 @@ document.addEventListener('alpine:init', () => {
     diagnoseResult: null,
     diagnosing: false,
 
+    /* --- Audit Log --- */
+    auditEntries: [],
+    auditFilter: '',
+    auditDate: '',
+
     /* ================================================================
        COMPUTED
        ================================================================ */
@@ -353,6 +358,12 @@ document.addEventListener('alpine:init', () => {
     },
 
     handleWsMessage(msg) {
+      // Keepalive ping — reply with pong
+      if (msg.type === 'ping') {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN)
+          this.ws.send(JSON.stringify({ type: 'pong' }));
+        return;
+      }
       // Server-pushed WhatsApp conversation — handle independently of activeChat
       if (msg.type === 'wa_message') {
         this.handleWhatsAppPush(msg);
@@ -1680,6 +1691,37 @@ document.addEventListener('alpine:init', () => {
       } finally {
         this.diagnosing = false;
       }
+    },
+
+    /* ================================================================
+       AUDIT LOG
+       ================================================================ */
+    async loadAuditLog() {
+      try {
+        const params = new URLSearchParams({ limit: 200 });
+        if (this.auditFilter) params.set('event_type', this.auditFilter);
+        if (this.auditDate)   params.set('date', this.auditDate);
+        const resp = await fetch(`/api/admin/audit?${params}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          this.auditEntries = data.entries || [];
+        }
+      } catch (e) {
+        this.auditEntries = [];
+      }
+    },
+    auditTs(ts) {
+      if (!ts) return '—';
+      const d = new Date(ts * 1000);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    },
+    auditBadgeClass(type) {
+      return {
+        chat: 'badge-gen',
+        tool: 'badge-exe',
+        security_block: 'badge-err',
+        memory: 'badge-mem',
+      }[type] || 'badge-sys';
     },
 
     /* ================================================================

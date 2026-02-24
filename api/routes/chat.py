@@ -103,6 +103,33 @@ async def websocket_chat(ws: WebSocket) -> None:
     _ws_connections.add(ws)
     current_session_id: Optional[str] = None
 
+    # Push any queued Telegram inbox messages to this new connection
+    try:
+        redis = ws.app.state.redis
+        inbox_raw = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: redis.r.lrange("remnant:telegram_inbox", 0, 49)
+        )
+        import json as _json
+        for raw_entry in reversed(inbox_raw):
+            try:
+                entry = _json.loads(raw_entry)
+                await ws.send_json({"type": "tg_message", **entry})
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Server-side keepalive — ping every 25s to prevent proxy/browser timeouts
+    async def _heartbeat():
+        while True:
+            await asyncio.sleep(25)
+            try:
+                await ws.send_json({"type": "ping"})
+            except Exception:
+                break
+
+    heartbeat = asyncio.create_task(_heartbeat())
+
     try:
         while True:
             raw = await ws.receive_text()
@@ -110,6 +137,10 @@ async def websocket_chat(ws: WebSocket) -> None:
                 data = json.loads(raw)
             except json.JSONDecodeError:
                 await ws.send_json({"error": "Invalid JSON"})
+                continue
+
+            # Handle pong (keepalive reply from client)
+            if data.get("type") == "pong":
                 continue
 
             # Handle stop signal
@@ -165,4 +196,5 @@ async def websocket_chat(ws: WebSocket) -> None:
         if current_session_id and current_session_id in _ws_cancel_events:
             _ws_cancel_events[current_session_id].set()
     finally:
+        heartbeat.cancel()
         _ws_connections.discard(ws)
