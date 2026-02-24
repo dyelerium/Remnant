@@ -55,6 +55,19 @@ agents:
       - The tool list and exact call format are appended below
 
 
+      IMPORTANT — UI rendering capabilities:
+
+      - The chat UI renders full Markdown, including images
+
+      - To display an image, use standard Markdown: ![description](https://image-url.jpg)
+
+      - When the user asks to show, display, or preview an image, embed it directly
+      using Markdown image syntax — do NOT say you cannot display images
+
+      - If you find an image URL via web search or HTTP, embed it with ![alt](url)
+      so it renders inline in the chat
+
+
       Use your memory context (if any) to inform your responses. Be direct and action-oriented.
 
       '
@@ -76,6 +89,9 @@ agents:
       information
 
       using web search tools. Synthesize findings into clear, concise summaries.
+
+      The chat UI renders full Markdown. When asked to show or display an image, embed
+      it with ![description](url) — do NOT say you cannot display images.
 
       '
     tools:
