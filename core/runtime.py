@@ -4,6 +4,7 @@ Agent runtime — RECALL → PLAN → LLM → TOOLS → RECORD → CURATE loop p
 from __future__ import annotations
 
 import asyncio
+import collections
 import json
 import logging
 import re
@@ -13,6 +14,15 @@ from .agent_graph import AgentNode, NodeStatus
 from .logging_config import set_logging_context
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Per-session conversation history (in-memory, lost on restart)
+# Stores up to _SESSION_MAX_TURNS user+assistant pairs per session_id.
+# ---------------------------------------------------------------------------
+_SESSION_MAX_TURNS = 10   # keep last 10 user+assistant pairs (20 messages)
+_session_histories: dict[str, collections.deque] = collections.defaultdict(
+    lambda: collections.deque(maxlen=_SESSION_MAX_TURNS * 2)
+)
 
 
 class AgentRuntime:
@@ -101,10 +111,13 @@ class AgentRuntime:
         # Redact any secrets from the incoming message
         safe_message = self.security.redact_prompt(message)
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": safe_message},
-        ]
+        # Inject recent session history so the agent remembers earlier turns
+        history = list(_session_histories[session_id]) if session_id else []
+        messages = (
+            [{"role": "system", "content": system_prompt}]
+            + history
+            + [{"role": "user", "content": safe_message}]
+        )
 
         # -- 3. LLM → TOOLS agentic loop --
         #
@@ -133,26 +146,29 @@ class AgentRuntime:
                 return
 
             buffered = "".join(buffered_parts)
+            # Strip <think>...</think> reasoning blocks produced by models like qwen3
+            # before tool detection and user-facing output so internal reasoning
+            # doesn't leak into the response or trigger spurious tool calls.
+            buffered_clean = self._strip_think_blocks(buffered)
 
-            if not self._should_execute_tools(buffered) or _round == self._max_tool_rounds:
+            if not self._should_execute_tools(buffered_clean) or _round == self._max_tool_rounds:
                 # No tool calls (or max rounds reached) — stream this as the final response
-                full_response = buffered
+                full_response = buffered_clean
                 yield "[GEN] "
-                for chunk in buffered_parts:
-                    yield chunk
+                yield buffered_clean
                 yield "\n"
                 break
 
-            # Execute tool calls found in this response
-            tool_results = await self._execute_tools(buffered, agent_node, project_id)
+            # Execute tool calls found in this response (using think-stripped text)
+            tool_results = await self._execute_tools(buffered_clean, agent_node, project_id)
             all_tool_results.extend(tool_results)
 
             if tool_results:
                 yield f"[EXE] {len(tool_results)} tool(s) executed\n"
                 logger.info("[RUNTIME] Round %d: executed %d tool(s)", _round + 1, len(tool_results))
 
-            # Build the clean assistant turn (strip raw tool blocks from display)
-            clean_assistant = self._strip_tool_blocks(buffered).strip()
+            # Build the clean assistant turn (strip tool blocks from display)
+            clean_assistant = self._strip_tool_blocks(buffered_clean).strip()
             if clean_assistant:
                 messages.append({"role": "assistant", "content": clean_assistant})
 
@@ -176,6 +192,12 @@ class AgentRuntime:
             })
 
             full_response = buffered  # keep last for recording
+
+        # -- Save to session history so subsequent turns have context --
+        if session_id and full_response:
+            hist = _session_histories[session_id]
+            hist.append({"role": "user", "content": safe_message})
+            hist.append({"role": "assistant", "content": full_response})
 
         # -- 5. RECORD --
         record_text = full_response
@@ -260,6 +282,11 @@ class AgentRuntime:
             if params:
                 lines.append(f"  args: {{{params}}}  (* = required)")
         return "\n".join(lines)
+
+    @staticmethod
+    def _strip_think_blocks(text: str) -> str:
+        """Remove <think>...</think> reasoning blocks emitted by models like qwen3."""
+        return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
     def _should_execute_tools(self, response: str) -> bool:
         """Check if LLM response contains tool call markers (any supported format)."""

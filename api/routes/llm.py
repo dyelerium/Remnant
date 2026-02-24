@@ -178,6 +178,50 @@ async def fetch_remote_models(provider: str, request: Request) -> dict:
             ]
             return {"provider": "nvidia", "models": static, "count": len(static)}
 
+    elif provider == "moonshot":
+        api_key = os.environ.get("MOONSHOT_API_KEY", "")
+        if not api_key:
+            raise HTTPException(status_code=400, detail="MOONSHOT_API_KEY not set")
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    "https://api.moonshot.cn/v1/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            models = []
+            for m in data.get("data", []):
+                mid = m.get("id", "")
+                ctx = 128000
+                if "8k" in mid:
+                    ctx = 8000
+                elif "32k" in mid:
+                    ctx = 32000
+                models.append({
+                    "id": mid,
+                    "name": mid,
+                    "context_length": ctx,
+                    "cost_per_1k_input": 0.0,
+                    "cost_per_1k_output": 0.0,
+                    "has_vision": False,
+                    "max_completion_tokens": 8192,
+                })
+            return {"provider": "moonshot", "models": models, "count": len(models)}
+        except httpx.HTTPError:
+            # Fallback static list
+            static = [
+                {"id": "kimi-k2.5", "name": "Kimi K2.5", "context_length": 128000,
+                 "cost_per_1k_input": 0.0005, "cost_per_1k_output": 0.0015, "has_vision": False, "max_completion_tokens": 16384},
+                {"id": "kimi-latest", "name": "Kimi Latest", "context_length": 128000,
+                 "cost_per_1k_input": 0.0005, "cost_per_1k_output": 0.0015, "has_vision": False, "max_completion_tokens": 8192},
+                {"id": "moonshot-v1-128k", "name": "Moonshot v1 128K", "context_length": 128000,
+                 "cost_per_1k_input": 0.0005, "cost_per_1k_output": 0.0015, "has_vision": False, "max_completion_tokens": 8192},
+                {"id": "moonshot-v1-32k", "name": "Moonshot v1 32K", "context_length": 32000,
+                 "cost_per_1k_input": 0.0003, "cost_per_1k_output": 0.0009, "has_vision": False, "max_completion_tokens": 8192},
+            ]
+            return {"provider": "moonshot", "models": static, "count": len(static)}
+
     elif provider == "openai":
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if not api_key:

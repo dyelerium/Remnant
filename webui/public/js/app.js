@@ -172,7 +172,7 @@ document.addEventListener('alpine:init', () => {
     wizardSaving: false,
     wizardMemoryContent: '',
     wizardUser: { name: '', location: '', prefs: '' },
-    wizardKeys: { openrouter: '', anthropic: '', openai: '', nvidia: '' },
+    wizardKeys: { openrouter: '', anthropic: '', openai: '', nvidia: '', moonshot: '' },
     wizardConnectors: { telegram: '', whatsapp: '' },
 
     /* ================================================================
@@ -1286,6 +1286,7 @@ document.addEventListener('alpine:init', () => {
             anthropic: 'ANTHROPIC_API_KEY',
             openai: 'OPENAI_API_KEY',
             nvidia: 'NVIDIA_API_KEY',
+            moonshot: 'MOONSHOT_API_KEY',
           };
           for (const [k, envName] of Object.entries(keyMap)) {
             if (this.wizardKeys[k]?.trim()) {
