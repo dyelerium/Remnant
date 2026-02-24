@@ -85,8 +85,12 @@ function tsNow() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 function uid() { return Math.random().toString(36).slice(2); }
-function renderMd(text) { return marked.parse(text || ''); }
+function renderMd(text) {
+  if (typeof marked === 'undefined') return `<p>${(text || '').replace(/\n/g, '<br>')}</p>`;
+  return marked.parse(text || '');
+}
 function renderMdWithCopy(text) {
+  if (typeof marked === 'undefined') return `<p>${(text || '').replace(/\n/g, '<br>')}</p>`;
   const html = marked.parse(text || '');
   return html.replace(
     /<pre><code/g,
@@ -287,6 +291,9 @@ document.addEventListener('alpine:init', () => {
       if (!localStorage.getItem(LS_WIZARD)) {
         await this.startWizard();
       }
+
+      // Ensure textarea renders with correct initial height
+      this.autoResize();
     },
 
     /* ================================================================

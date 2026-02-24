@@ -256,6 +256,8 @@ main {
   flex-direction: column;
   overflow: hidden;
   background: var(--bg);
+  grid-column: 2; /* explicit: aside is position:fixed on mobile → removed from grid flow → main would land on col 1 (width:0) without this */
+  grid-row: 2;
 }
 
 /* ============================================================
@@ -569,6 +571,7 @@ main {
   outline: none;
   font-size: 14px;
   line-height: 1.5;
+  min-height: 36px;
   max-height: 150px;
   overflow-y: auto;
   color: var(--text);
