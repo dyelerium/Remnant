@@ -210,10 +210,17 @@ class AgentRuntime:
             # doesn't leak into the response or trigger spurious tool calls.
             buffered_clean = self._strip_think_blocks(buffered)
 
-            if not self._should_execute_tools(buffered_clean) or _round == self._max_tool_rounds:
+            # Detect tool calls: prefer clean text (outside think blocks).
+            # Fallback: some models accidentally put tool calls inside think blocks —
+            # in that case use the raw buffered text for parsing.
+            has_tools_clean = self._should_execute_tools(buffered_clean)
+            has_tools_in_think = not has_tools_clean and self._should_execute_tools(buffered)
+            tool_source = buffered if has_tools_in_think else buffered_clean
+
+            if (not has_tools_clean and not has_tools_in_think) or _round == self._max_tool_rounds:
                 # No tool calls (or max rounds reached) — stream this as the final response.
-                # Put think-block content (if any) in the [GEN] badge line so it shows in
-                # the process bubble; emit the clean response on subsequent lines so
+                # Put think-block content (if any) in the [GEN] badge so it shows in the
+                # process bubble; emit the clean response on subsequent lines so
                 # parseAgentOutput classifies it as a markdown part (outside the bubble).
                 full_response = buffered_clean
                 think_match = re.search(r"<think>(.*?)</think>", buffered, re.DOTALL)
@@ -229,21 +236,27 @@ class AgentRuntime:
                 yield "\n"
                 break
 
-            # Execute tool calls found in this response (using think-stripped text)
-            tool_results = await self._execute_tools(buffered_clean, agent_node, project_id)
+            # Execute tool calls (from clean text or think fallback)
+            tool_results = await self._execute_tools(tool_source, agent_node, project_id)
             all_tool_results.extend(tool_results)
 
             if tool_results:
                 tool_names = ", ".join(r["tool"] for r in tool_results)
                 yield f"[EXE] {tool_names}\n"
-                logger.info("[RUNTIME] Round %d: executed %d tool(s)", _round + 1, len(tool_results))
+                logger.info(
+                    "[RUNTIME] Round %d: %d tool(s) [think_fallback=%s]",
+                    _round + 1, len(tool_results), has_tools_in_think,
+                )
 
             # Build the clean assistant turn (strip tool blocks from display)
             clean_assistant = self._strip_tool_blocks(buffered_clean).strip()
             if clean_assistant:
                 messages.append({"role": "assistant", "content": clean_assistant})
 
-            # Inject tool results as the next user turn
+            # Inject tool results — truncate each result to avoid context overflow.
+            # Large web_search / delegate outputs can push 5-20k tokens per round.
+            _MAX_RESULT_CHARS = 3000
+
             def _safe_json(v):
                 try:
                     return json.dumps(v)
@@ -251,7 +264,7 @@ class AgentRuntime:
                     return str(v)
 
             tool_result_text = "\n".join(
-                f"[{r['tool']}]: {_safe_json(r.get('result', r.get('error')))}"
+                f"[{r['tool']}]: {_safe_json(r.get('result', r.get('error')))[:_MAX_RESULT_CHARS]}"
                 for r in tool_results
             )
             messages.append({

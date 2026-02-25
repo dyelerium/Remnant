@@ -27,6 +27,7 @@ agents:
       - UI renders Markdown: embed images as ![alt](url), never claim you can't show them.
       - Missing a capability? Call marketplace(action=search, query=...) to find it, marketplace(action=install, id=...) to add it.
       - Respond concisely — answer in the minimum tokens needed. No filler, no recap.
+      - CRITICAL: Tool calls must appear in the main response, NEVER inside <think> blocks.
     tools:
     - filesystem
     - web_search
