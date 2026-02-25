@@ -211,9 +211,20 @@ class AgentRuntime:
             buffered_clean = self._strip_think_blocks(buffered)
 
             if not self._should_execute_tools(buffered_clean) or _round == self._max_tool_rounds:
-                # No tool calls (or max rounds reached) — stream this as the final response
+                # No tool calls (or max rounds reached) — stream this as the final response.
+                # Put think-block content (if any) in the [GEN] badge line so it shows in
+                # the process bubble; emit the clean response on subsequent lines so
+                # parseAgentOutput classifies it as a markdown part (outside the bubble).
                 full_response = buffered_clean
-                yield "[GEN] "
+                think_match = re.search(r"<think>(.*?)</think>", buffered, re.DOTALL)
+                if think_match:
+                    think_lines = [l.strip() for l in think_match.group(1).splitlines() if l.strip()]
+                    think_summary = " · ".join(think_lines)
+                    if len(think_summary) > 280:
+                        think_summary = think_summary[:277] + "…"
+                    yield f"[GEN] {think_summary}\n"
+                else:
+                    yield "[GEN] \n"
                 yield buffered_clean
                 yield "\n"
                 break
@@ -223,7 +234,8 @@ class AgentRuntime:
             all_tool_results.extend(tool_results)
 
             if tool_results:
-                yield f"[EXE] {len(tool_results)} tool(s) executed\n"
+                tool_names = ", ".join(r["tool"] for r in tool_results)
+                yield f"[EXE] {tool_names}\n"
                 logger.info("[RUNTIME] Round %d: executed %d tool(s)", _round + 1, len(tool_results))
 
             # Build the clean assistant turn (strip tool blocks from display)
