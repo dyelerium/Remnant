@@ -143,20 +143,27 @@ class LLMClient:
         return specs
 
     @staticmethod
-    def _is_rate_limit_error(exc: Exception) -> bool:
-        """Return True if the exception represents a rate-limit / quota error."""
+    def _is_transient_error(exc: Exception) -> bool:
+        """Return True if the exception is transient (rate-limit, overload, unavailable).
+
+        These errors warrant trying the fallback chain rather than hard-failing.
+        """
         exc_type = type(exc).__name__
-        # Anthropic
-        if exc_type == "RateLimitError":
+        # Anthropic SDK classes
+        if exc_type in ("RateLimitError", "OverloadedError", "APIStatusError"):
             return True
-        # OpenAI SDK
-        if hasattr(exc, "status_code") and exc.status_code == 429:
+        # OpenAI SDK status codes
+        if hasattr(exc, "status_code") and exc.status_code in (429, 500, 502, 503, 504):
             return True
-        # httpx (Ollama)
+        # httpx responses (Ollama / any provider via httpx)
         if hasattr(exc, "response") and hasattr(exc.response, "status_code"):
-            return exc.response.status_code == 429
-        # Generic string check
-        return "429" in str(exc) or "rate limit" in str(exc).lower()
+            return exc.response.status_code in (429, 500, 502, 503, 504)
+        # Generic string matching (last resort)
+        s = str(exc).lower()
+        return any(k in s for k in ("429", "503", "rate limit", "overloaded", "service unavailable"))
+
+    # Backward-compat alias used in tests
+    _is_rate_limit_error = _is_transient_error
 
 
     # ------------------------------------------------------------------
@@ -403,8 +410,19 @@ class LLMClient:
             "stream": False,
             "options": {"temperature": temperature, "top_p": spec.top_p, "num_predict": max_tokens or 4096},
         }
-        r = httpx.post(f"{base}/api/chat", json=payload, timeout=120.0)
-        r.raise_for_status()
+        _RETRIES = 2
+        for attempt in range(_RETRIES + 1):
+            try:
+                r = httpx.post(f"{base}/api/chat", json=payload, timeout=120.0)
+                r.raise_for_status()
+                break
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (503, 502, 504) and attempt < _RETRIES:
+                    wait = 3 * (attempt + 1)
+                    logger.warning("[LLM] Ollama %s — retry %d/%d in %ds", exc.response.status_code, attempt + 1, _RETRIES, wait)
+                    time.sleep(wait)
+                else:
+                    raise
         data = r.json()
         content = data.get("message", {}).get("content", "")
         return {
@@ -425,20 +443,31 @@ class LLMClient:
             "stream": True,
             "options": {"temperature": temperature, "top_p": spec.top_p, "num_predict": max_tokens or 4096},
         }
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            async with client.stream("POST", f"{base}/api/chat", json=payload) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if cancel_event and cancel_event.is_set():
-                        break
-                    if not line:
-                        continue
-                    try:
-                        data = json.loads(line)
-                        chunk = data.get("message", {}).get("content", "")
-                        if chunk:
-                            yield chunk
-                        if data.get("done"):
-                            break
-                    except json.JSONDecodeError:
-                        continue
+        _RETRIES = 2
+        for attempt in range(_RETRIES + 1):
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    async with client.stream("POST", f"{base}/api/chat", json=payload) as response:
+                        response.raise_for_status()
+                        async for line in response.aiter_lines():
+                            if cancel_event and cancel_event.is_set():
+                                return
+                            if not line:
+                                continue
+                            try:
+                                data = json.loads(line)
+                                chunk = data.get("message", {}).get("content", "")
+                                if chunk:
+                                    yield chunk
+                                if data.get("done"):
+                                    return
+                            except json.JSONDecodeError:
+                                continue
+                return  # success
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code in (503, 502, 504) and attempt < _RETRIES:
+                    wait = 3 * (attempt + 1)
+                    logger.warning("[LLM] Ollama %s — retry %d/%d in %ds", exc.response.status_code, attempt + 1, _RETRIES, wait)
+                    await asyncio.sleep(wait)
+                else:
+                    raise

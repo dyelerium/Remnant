@@ -200,7 +200,17 @@ class AgentRuntime:
                     buffered_parts.append(chunk)
             except Exception as exc:
                 logger.error("[RUNTIME] LLM stream error: %s", exc)
-                yield f"[Error: {exc}]"
+                # Give the user a concise, readable message instead of a raw HTTP traceback
+                err_str = str(exc)
+                if "503" in err_str or "Service Unavailable" in err_str:
+                    friendly = "LLM unavailable (503) — Ollama may be loading a model or under load. Retried automatically; all fallbacks exhausted."
+                elif "429" in err_str or "rate limit" in err_str.lower():
+                    friendly = "LLM rate-limited (429) — all fallback providers also exhausted."
+                elif "timeout" in err_str.lower() or "timed out" in err_str.lower():
+                    friendly = "LLM request timed out. Try again or switch to a faster model."
+                else:
+                    friendly = f"LLM error: {err_str[:200]}"
+                yield f"[ERR] {friendly}\n"
                 agent_node.status = NodeStatus.FAILED
                 return
 
