@@ -177,6 +177,8 @@ class AgentRuntime:
         # tool results mid-stream.
         full_response = ""
         all_tool_results: list[dict] = []
+        _base_ctx_len = len(messages)  # snapshot before tool rounds begin
+        _MAX_CTX_ROUNDS = 3             # sliding window: keep last N tool-round pairs
 
         for _round in range(self._max_tool_rounds + 1):
             # Check cancellation before each round
@@ -260,6 +262,14 @@ class AgentRuntime:
 
             # Build the clean assistant turn (strip tool blocks from display)
             clean_assistant = self._strip_tool_blocks(buffered_clean).strip()
+
+            # Sliding context window: if we've accumulated more than _MAX_CTX_ROUNDS
+            # tool-round pairs beyond the base messages, drop the oldest pair
+            # (assistant + user/results turns) to prevent context overflow.
+            ctx_pairs = (len(messages) - _base_ctx_len) // 2
+            if ctx_pairs >= _MAX_CTX_ROUNDS:
+                del messages[_base_ctx_len:_base_ctx_len + 2]
+
             if clean_assistant:
                 messages.append({"role": "assistant", "content": clean_assistant})
 
@@ -277,9 +287,20 @@ class AgentRuntime:
                 f"[{r['tool']}]: {_safe_json(r.get('result', r.get('error')))[:_MAX_RESULT_CHARS]}"
                 for r in tool_results
             )
+
+            # When approaching max rounds, nudge the model to synthesize rather than
+            # keep calling tools — prevents indefinite looping on research tasks.
+            tool_result_content = f"Results:\n{tool_result_text}"
+            if _round >= self._max_tool_rounds - 2:
+                tool_result_content += (
+                    "\n\nIMPORTANT: You now have sufficient data. "
+                    "Write a comprehensive final answer using the information gathered. "
+                    "Do NOT call any more tools."
+                )
+
             messages.append({
                 "role": "user",
-                "content": f"Results:\n{tool_result_text}",
+                "content": tool_result_content,
             })
 
             full_response = buffered  # keep last for recording
