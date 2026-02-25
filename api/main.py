@@ -142,7 +142,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # -- Skills --
     skill_registry = SkillRegistry("skills")
     skill_registry.load()
-    marketplace_tool.set_registry(skill_registry)  # wire after skill_registry created
+    marketplace_tool.set_registry(skill_registry)   # wire after skill_registry created
+    runtime.set_skill_registry(skill_registry)       # expose skills as callable tools
 
     # -- Project manager --
     project_manager = ProjectManager(redis_client, config)

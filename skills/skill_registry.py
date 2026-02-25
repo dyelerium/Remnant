@@ -85,5 +85,13 @@ class SkillRegistry:
             if src in args:
                 mapped_args[dst] = mapped_args.pop(src)
 
+        # code_template: substitute args into embedded code, then run via code_exec
+        if "code_template" in skill:
+            try:
+                mapped_args["code"] = skill["code_template"].format(**{**args, **mapped_args})
+            except KeyError as exc:
+                return {"error": f"Missing required arg for code_template: {exc}"}
+            mapped_args.setdefault("language", skill.get("language", "python"))
+
         result = await tool(mapped_args, **context)
         return result.to_dict()

@@ -3,6 +3,38 @@
 # type: skill | mcp | plugin
 # -------------------------------------------------------------------
 
+# ── File processing skills ─────────────────────────────────────────
+
+- id: pdf_reader
+  type: skill
+  title: PDF Reader
+  description: Extract text from a PDF file (auto-installs pdfminer.six on first use).
+  tags: [pdf, files, text-extraction, free]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: pdf_reader
+    description: >
+      Extract text from a local PDF file path.
+      Uses pdfminer.six (auto-installed). Returns full text content.
+    tool: code_exec
+    language: python
+    tags: [pdf, files]
+    safety_level: safe
+    input_schema:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "Absolute path to the PDF file, e.g. /app/workspace/document.pdf"
+      required: [path]
+    code_template: |
+      import subprocess, sys
+      subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "pdfminer.six"])
+      from pdfminer.high_level import extract_text
+      text = extract_text("{path}")
+      print(text if text.strip() else "[PDF contained no extractable text]")
+
 # ── Free HTTP skills (no API key) ──────────────────────────────────
 
 - id: weather_check

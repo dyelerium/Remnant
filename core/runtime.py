@@ -46,6 +46,7 @@ class AgentRuntime:
         tool_registry: Optional[dict] = None,
         redis_client=None,
         audit_logger=None,
+        skill_registry=None,
     ) -> None:
         self.retriever = memory_retriever
         self.recorder = memory_recorder
@@ -54,10 +55,15 @@ class AgentRuntime:
         self.curator = curator_agent
         self.config = config
         self._tool_registry: dict = tool_registry or {}
+        self._skill_registry = skill_registry  # for calling installed skills by name
         self._agents_cfg: dict = config.get("agents", {})
         self._max_tool_rounds = 5
         self._redis = redis_client
         self._audit = audit_logger
+
+    def set_skill_registry(self, skill_registry) -> None:
+        """Wire the skill registry post-construction (avoids circular dep)."""
+        self._skill_registry = skill_registry
 
     # ------------------------------------------------------------------
     # Budget-mode use-case selector
@@ -354,6 +360,12 @@ class AgentRuntime:
             )
             suffix = f"({params})" if params else ""
             lines.append(f"- {name}{suffix}: {desc}")
+        # Also list installed skills (callable the same way)
+        if self._skill_registry:
+            for skill in self._skill_registry.list():
+                sname = skill["name"]
+                sdesc = skill.get("description", "")
+                lines.append(f"- {sname}: {sdesc} [skill]")
         return "\n".join(lines)
 
     @staticmethod
@@ -434,6 +446,26 @@ class AgentRuntime:
 
             tool = self._tool_registry.get(tool_name)
             if not tool:
+                # Fall back to skill registry if available
+                if self._skill_registry and self._skill_registry.get(tool_name):
+                    try:
+                        result_data = await self._skill_registry.invoke(
+                            tool_name, tool_args, self._tool_registry,
+                            agent_node=agent_node,
+                        )
+                        results.append({"tool": tool_name, "result": result_data})
+                        logger.info("[RUNTIME] Skill %r OK: %s", tool_name, str(result_data)[:120])
+                        if self._audit:
+                            self._audit.log_tool(
+                                tool_name=tool_name,
+                                session_id=agent_node.agent_id,
+                                args_preview=str(tool_args)[:200],
+                                result_ok=True,
+                            )
+                    except Exception as exc:
+                        logger.error("[RUNTIME] Skill %r failed: %s", tool_name, exc)
+                        results.append({"tool": tool_name, "error": str(exc)})
+                    continue
                 results.append({"tool": tool_name, "error": f"tool '{tool_name}' not found in registry"})
                 continue
 

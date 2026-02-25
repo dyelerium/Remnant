@@ -40,8 +40,8 @@ class MarketplaceTool(BaseTool):
         index_path: Optional[Path] = None,
         imported_dir: Optional[Path] = None,
     ) -> None:
-        self._index_path = index_path or _INDEX_PATH
-        self._imported_dir = imported_dir or _IMPORTED_DIR
+        self._index_path = Path(index_path) if index_path else _INDEX_PATH
+        self._imported_dir = Path(imported_dir) if imported_dir else _IMPORTED_DIR
         self._skill_registry = None  # wired post-construction via set_registry()
         self._index: list[dict] = []
         self._load_index()
