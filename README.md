@@ -87,7 +87,7 @@ Remnant is a self-hostable AI agent framework built around three principles:
 ### Docker (recommended)
 
 ```bash
-git clone <repo> remnant && cd remnant
+git clone git@github.com:dyelerium/Remnant.git && cd remnant
 cp .env.example .env
 # Edit .env — set at least one LLM key (OPENROUTER_API_KEY is free)
 docker compose up -d
