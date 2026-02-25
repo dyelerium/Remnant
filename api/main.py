@@ -50,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from tools.code_exec_tool import CodeExecTool
     from tools.config_tool import ConfigTool
     from tools.delegate_tool import DelegateTool
+    from tools.gmail_tool import GmailTool
 
     # -- Config + logging --
     cfg_loader = get_config()
@@ -121,6 +122,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         ),
         "config": ConfigTool(registry=registry, config_dir=Path("/app/config")),
         "delegate": delegate_tool,
+        "gmail": GmailTool(),
     }
 
     # -- Agent runtime --

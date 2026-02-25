@@ -1,0 +1,49 @@
+name: gmail_check
+description: >
+  Check your Gmail inbox via IMAP App Password.
+  List unread emails, search by subject/sender, or read a full email body.
+  Requires GMAIL_ADDRESS and GMAIL_APP_PASSWORD set in your .env file.
+  Use a Gmail App Password (not your regular password) — create one at
+  myaccount.google.com/apppasswords.
+tool: gmail
+tags: [email, gmail, productivity, inbox]
+safety_level: safe
+requires:
+  - GMAIL_ADDRESS
+  - GMAIL_APP_PASSWORD
+
+input_schema:
+  type: object
+  properties:
+    action:
+      type: string
+      enum: [list_unread, search, read]
+      description: >
+        list_unread = show recent unread messages;
+        search = find emails by subject or sender;
+        read = fetch the full body of a specific email.
+    count:
+      type: integer
+      description: How many emails to return (default 10, max ~50)
+    query:
+      type: string
+      description: Search term for action=search (matches subject or sender)
+    uid:
+      type: string
+      description: Email UID from a previous list_unread or search result (for action=read)
+  required:
+    - action
+
+examples:
+  - description: List the 10 most recent unread emails
+    args:
+      action: list_unread
+      count: 10
+  - description: Search for emails from Google
+    args:
+      action: search
+      query: Google
+  - description: Read a specific email by UID
+    args:
+      action: read
+      uid: "12345"
