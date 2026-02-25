@@ -440,7 +440,7 @@ class TestBuildToolDocs:
         )
         docs = rt._build_tool_docs()
         assert "## Tools" in docs
-        assert "Available tools:" in docs
+        assert "```tool" in docs
 
     def test_multiple_tools_all_listed(self):
         tool_a = MagicMock()

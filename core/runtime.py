@@ -119,13 +119,10 @@ class AgentRuntime:
         )
         system_prompt = agent_cfg.get("system_prompt", "You are a helpful AI assistant.")
 
-        # Inject current model identity so the agent knows what LLM it is using
+        # Inject current model identity
         try:
             _spec = self.llm.registry.resolve("chat")
-            system_prompt += (
-                f"\n[Current model: {_spec.provider}/{_spec.model}"
-                f" | context: {_spec.context_window} tokens]"
-            )
+            system_prompt += f"\n[model:{_spec.provider}/{_spec.model}]"
         except Exception:
             pass
 
@@ -241,10 +238,7 @@ class AgentRuntime:
             )
             messages.append({
                 "role": "user",
-                "content": (
-                    f"Tool results:\n{tool_result_text}\n\n"
-                    "Use these real results to answer the user. Do not guess or fabricate data."
-                ),
+                "content": f"Results:\n{tool_result_text}",
             })
 
             full_response = buffered  # keep last for recording
@@ -342,17 +336,12 @@ class AgentRuntime:
             return []
 
     def _build_tool_docs(self) -> str:
-        """Build a tool reference block injected into the system prompt."""
-        import json
+        """Build a compact tool reference injected into the system prompt."""
         lines = [
-            "## Tools",
-            "When a task requires using a tool, output a fenced block with this exact format:",
+            "## Tools — one per block:",
             "```tool",
-            '{"name": "tool_name", "args": {"param": "value"}}',
+            '{"name":"tool_name","args":{"param":"value"}}',
             "```",
-            "Execute ONE tool per block. The result will be appended and you can reason over it.",
-            "",
-            "Available tools:",
         ]
         for name, tool in self._tool_registry.items():
             hint = getattr(tool, "schema_hint", {})
@@ -360,12 +349,11 @@ class AgentRuntime:
             props = hint.get("parameters", {}).get("properties", {})
             required = hint.get("parameters", {}).get("required", [])
             params = ", ".join(
-                f"{k}{'*' if k in required else ''}: {v.get('type', '?')}"
-                for k, v in props.items()
+                f"{k}{'*' if k in required else ''}"
+                for k in props
             )
-            lines.append(f"- **{name}**: {desc}")
-            if params:
-                lines.append(f"  args: {{{params}}}  (* = required)")
+            suffix = f"({params})" if params else ""
+            lines.append(f"- {name}{suffix}: {desc}")
         return "\n".join(lines)
 
     @staticmethod

@@ -9,22 +9,12 @@ from memory.memory_schema import ImportanceLabel
 
 logger = logging.getLogger(__name__)
 
-_CURATOR_PROMPT = """You are a memory curation agent for the Remnant AI framework.
+_CURATOR_PROMPT = """Score memory chunk. Reply: LABEL\nreason (1 sentence).
+GLOBAL_HIGH=durable cross-project facts, identity, preferences
+PROJECT_HIGH=important project-specific info (1yr TTL)
+EPHEMERAL=transient, redundant, or low-value (7d TTL)
 
-Evaluate the following memory chunk and assign an importance label:
-- GLOBAL_HIGH: Cross-project durable facts, identity, core preferences (no expiry)
-- PROJECT_HIGH: Important project-specific facts (1 year TTL)
-- EPHEMERAL: Low-value, transient, or redundant (7 day TTL)
-
-Chunk content:
-\"\"\"
-{text}
-\"\"\"
-
-Metadata: type={chunk_type}, project={project_id}, source={source}
-
-Respond with ONLY one of: GLOBAL_HIGH, PROJECT_HIGH, EPHEMERAL
-Then on the next line, provide a one-sentence reason."""
+chunk: \"\"\"{text}\"\"\" | type={chunk_type} project={project_id} src={source}"""
 
 
 class CuratorAgent:

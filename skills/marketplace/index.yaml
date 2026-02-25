@@ -1,0 +1,473 @@
+# Remnant Marketplace — curated skills, tools, MCP servers
+# status: installed = already available | available = can be installed
+# type: skill | mcp | plugin
+# -------------------------------------------------------------------
+
+# ── Free HTTP skills (no API key) ──────────────────────────────────
+
+- id: weather_check
+  type: skill
+  title: Weather Check
+  description: Get current weather + hourly forecast for any coordinates (Open-Meteo, free, no key).
+  tags: [weather, location, free]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: weather_check
+    description: >
+      Current weather + forecast via Open-Meteo (free, no API key).
+      Call with: url=https://api.open-meteo.com/v1/forecast?latitude=LAT&longitude=LON&current_weather=true&hourly=temperature_2m,windspeed_10m
+    tool: http_client
+    tags: [weather, free]
+    safety_level: safe
+    input_schema:
+      type: object
+      properties:
+        url:
+          type: string
+          description: "Open-Meteo URL with latitude and longitude substituted, e.g. https://api.open-meteo.com/v1/forecast?latitude=46.77&longitude=23.59&current_weather=true"
+      required: [url]
+    examples:
+      - description: Weather for Cluj-Napoca
+        args:
+          url: "https://api.open-meteo.com/v1/forecast?latitude=46.77&longitude=23.59&current_weather=true"
+
+- id: ip_info
+  type: skill
+  title: IP Info Lookup
+  description: Get geolocation and ISP info for any IP address (ipinfo.io, free tier).
+  tags: [network, ip, geo, free]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: ip_info
+    description: >
+      Get geolocation + ISP for an IP address via ipinfo.io.
+      Call with: url=https://ipinfo.io/IP_ADDRESS/json
+    tool: http_client
+    tags: [network, ip, geo]
+    safety_level: safe
+    input_schema:
+      type: object
+      properties:
+        url:
+          type: string
+          description: "ipinfo URL: https://ipinfo.io/8.8.8.8/json or https://ipinfo.io/json for your own IP"
+      required: [url]
+    examples:
+      - description: Look up Google's DNS
+        args:
+          url: "https://ipinfo.io/8.8.8.8/json"
+
+- id: currency_convert
+  type: skill
+  title: Currency Converter
+  description: Live exchange rates for 160+ currencies (Frankfurter API, free, no key).
+  tags: [finance, currency, free]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: currency_convert
+    description: >
+      Convert currencies via Frankfurter API (ECB rates, free).
+      Call with: url=https://api.frankfurter.app/latest?from=FROM&to=TO&amount=AMOUNT
+    tool: http_client
+    tags: [finance, currency]
+    safety_level: safe
+    examples:
+      - description: Convert 100 EUR to USD
+        args:
+          url: "https://api.frankfurter.app/latest?from=EUR&to=USD&amount=100"
+
+- id: rss_reader
+  type: skill
+  title: RSS Feed Reader
+  description: Fetch and read any RSS/Atom feed as raw XML text.
+  tags: [news, rss, feeds, web]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: rss_reader
+    description: Fetch any RSS/Atom feed. Call with url=FEED_URL
+    tool: http_client
+    tags: [rss, news, feeds]
+    safety_level: safe
+    examples:
+      - description: Hacker News top stories
+        args:
+          url: "https://news.ycombinator.com/rss"
+
+- id: url_preview
+  type: skill
+  title: URL Preview / Scraper
+  description: Fetch any public URL and return its text content (respects robots.txt).
+  tags: [web, scraping, research]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: url_preview
+    description: Fetch any public URL and return content. Call with url=URL
+    tool: http_client
+    tags: [web, research]
+    safety_level: safe
+    examples:
+      - description: Fetch a webpage
+        args:
+          url: "https://example.com"
+
+# ── Webhook / messaging skills ──────────────────────────────────────
+
+- id: slack_notify
+  type: skill
+  title: Slack Notification
+  description: Send messages to Slack channels via Incoming Webhook (needs SLACK_WEBHOOK_URL).
+  tags: [messaging, slack, notifications, webhook]
+  status: available
+  requires: [SLACK_WEBHOOK_URL]
+  skill_yaml: |
+    name: slack_notify
+    description: >
+      Send a Slack message via Incoming Webhook.
+      Call with: url=WEBHOOK_URL, method=POST, body={"text":"your message"}
+      Get webhook URL from api.slack.com/apps → Incoming Webhooks.
+      Store it as a Remnant secret named SLACK_WEBHOOK_URL.
+    tool: http_client
+    tags: [slack, messaging, webhook]
+    safety_level: safe
+    requires: [SLACK_WEBHOOK_URL]
+    examples:
+      - description: Send a message
+        args:
+          url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+          method: POST
+          body:
+            text: "Hello from Remnant!"
+
+- id: discord_notify
+  type: skill
+  title: Discord Notification
+  description: Send messages to Discord channels via Webhook (needs DISCORD_WEBHOOK_URL).
+  tags: [messaging, discord, notifications, webhook]
+  status: available
+  requires: [DISCORD_WEBHOOK_URL]
+  skill_yaml: |
+    name: discord_notify
+    description: >
+      Send a Discord message via Webhook.
+      Call with: url=WEBHOOK_URL, method=POST, body={"content":"your message"}
+    tool: http_client
+    tags: [discord, messaging, webhook]
+    safety_level: safe
+    requires: [DISCORD_WEBHOOK_URL]
+    examples:
+      - description: Send a message
+        args:
+          url: "https://discord.com/api/webhooks/YOUR/WEBHOOK"
+          method: POST
+          body:
+            content: "Hello from Remnant!"
+
+- id: telegram_send
+  type: skill
+  title: Telegram Message Sender
+  description: Send messages via Telegram Bot API (needs TELEGRAM_BOT_TOKEN and CHAT_ID).
+  tags: [messaging, telegram, notifications]
+  status: available
+  requires: [TELEGRAM_BOT_TOKEN]
+  skill_yaml: |
+    name: telegram_send
+    description: >
+      Send a Telegram message via Bot API.
+      Call with: url=https://api.telegram.org/botTOKEN/sendMessage, method=POST, body={"chat_id":CHAT_ID,"text":"message"}
+    tool: http_client
+    tags: [telegram, messaging]
+    safety_level: safe
+    requires: [TELEGRAM_BOT_TOKEN]
+    examples:
+      - description: Send a message
+        args:
+          url: "https://api.telegram.org/bot<TOKEN>/sendMessage"
+          method: POST
+          body:
+            chat_id: 123456789
+            text: "Hello from Remnant!"
+
+- id: ntfy_notify
+  type: skill
+  title: ntfy Push Notification
+  description: Push notifications to any device via ntfy.sh (free, no account needed).
+  tags: [notifications, push, free]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: ntfy_notify
+    description: >
+      Send push notification via ntfy.sh (free).
+      Call with: url=https://ntfy.sh/YOUR_TOPIC, method=POST, body="your message text"
+      Subscribe to your topic in the ntfy app.
+    tool: http_client
+    tags: [notifications, push, free]
+    safety_level: safe
+    examples:
+      - description: Send a push notification
+        args:
+          url: "https://ntfy.sh/my-remnant-alerts"
+          method: POST
+          body: "Task completed!"
+
+# ── Code-execution utility skills ──────────────────────────────────
+
+- id: date_math
+  type: skill
+  title: Date & Time Calculator
+  description: Add/subtract days, calculate duration between dates, format timestamps.
+  tags: [utility, dates, time, calculator]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: date_math
+    description: >
+      Date/time calculations using Python datetime. Write Python code using datetime, timedelta.
+      Call with: language=python, code="from datetime import datetime, timedelta\n# your calculation here"
+    tool: code_exec
+    tags: [utility, dates]
+    safety_level: safe
+
+- id: base64_util
+  type: skill
+  title: Base64 Encode / Decode
+  description: Encode or decode strings with Base64 using Python.
+  tags: [utility, encoding, base64]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: base64_util
+    description: >
+      Base64 encode/decode. Call with: language=python,
+      code="import base64\nprint(base64.b64encode(b'hello').decode())"
+    tool: code_exec
+    tags: [utility, encoding]
+    safety_level: safe
+
+- id: hash_text
+  type: skill
+  title: Text Hasher
+  description: Hash text with MD5, SHA-256, SHA-512 using Python hashlib.
+  tags: [utility, security, hash, crypto]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: hash_text
+    description: >
+      Hash text with any algorithm. Call with: language=python,
+      code="import hashlib\nprint(hashlib.sha256(b'text').hexdigest())"
+    tool: code_exec
+    tags: [utility, hash, security]
+    safety_level: safe
+
+- id: csv_parser
+  type: skill
+  title: CSV Parser
+  description: Parse CSV data into JSON using Python csv module.
+  tags: [data, csv, parsing, utility]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: csv_parser
+    description: >
+      Parse CSV to JSON. Call with: language=python,
+      code="import csv,json,io\ndata='col1,col2\nv1,v2'\nrows=list(csv.DictReader(io.StringIO(data)))\nprint(json.dumps(rows))"
+    tool: code_exec
+    tags: [data, csv, utility]
+    safety_level: safe
+
+- id: json_format
+  type: skill
+  title: JSON Formatter / Validator
+  description: Pretty-print, validate, or query JSON using Python json module.
+  tags: [data, json, utility, formatting]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: json_format
+    description: >
+      Format/validate JSON. Call with: language=python,
+      code="import json\ndata='{...}'\nprint(json.dumps(json.loads(data), indent=2))"
+    tool: code_exec
+    tags: [json, utility, data]
+    safety_level: safe
+
+- id: send_email_smtp
+  type: skill
+  title: Send Email (SMTP)
+  description: Send email via SMTP (Gmail, Outlook, etc.) using Python smtplib.
+  tags: [email, smtp, notifications]
+  status: available
+  requires: [SMTP_HOST, SMTP_USER, SMTP_PASSWORD]
+  skill_yaml: |
+    name: send_email_smtp
+    description: >
+      Send email via SMTP. Write Python using smtplib, insert your SMTP credentials.
+      Example: language=python, code uses smtplib.SMTP_SSL with your host/port/credentials.
+    tool: code_exec
+    tags: [email, smtp]
+    safety_level: confirm
+
+# ── Shell / network utility skills ─────────────────────────────────
+
+- id: ping_host
+  type: skill
+  title: Ping Host
+  description: Ping a hostname or IP to check reachability.
+  tags: [network, diagnostics, ping]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: ping_host
+    description: >
+      Ping a host. Call with: command="ping -c 4 HOSTNAME"
+    tool: shell
+    tags: [network, diagnostics]
+    safety_level: safe
+
+- id: port_check
+  type: skill
+  title: TCP Port Checker
+  description: Check if a TCP port is open on a host using Python socket.
+  tags: [network, diagnostics, ports]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: port_check
+    description: >
+      Check if port is open. language=python, code="import socket\ns=socket.socket()\ns.settimeout(3)\nprint('open' if s.connect_ex(('HOST',PORT))==0 else 'closed')"
+    tool: code_exec
+    tags: [network, diagnostics]
+    safety_level: safe
+
+# ── GitHub integration ──────────────────────────────────────────────
+
+- id: github_search
+  type: skill
+  title: GitHub Search
+  description: Search GitHub repos, issues, or code via REST API (public endpoints, no key needed).
+  tags: [github, code, search]
+  status: available
+  requires: []
+  skill_yaml: |
+    name: github_search
+    description: >
+      Search GitHub via REST API (public, no token for basic use).
+      repos: url=https://api.github.com/search/repositories?q=QUERY
+      issues: url=https://api.github.com/search/issues?q=QUERY
+      code:   url=https://api.github.com/search/code?q=QUERY+in:file+language:python
+    tool: http_client
+    tags: [github, search, code]
+    safety_level: safe
+    examples:
+      - description: Search repos about FastAPI
+        args:
+          url: "https://api.github.com/search/repositories?q=fastapi+stars:>1000&sort=stars"
+
+# ── Already installed (for discoverability) ────────────────────────
+
+- id: gmail_check
+  type: skill
+  title: Gmail Inbox Checker
+  description: Read Gmail via IMAP App Password — list unread, search, read full emails.
+  tags: [email, gmail, productivity]
+  status: installed
+  requires: [GMAIL_ADDRESS, GMAIL_APP_PASSWORD]
+
+- id: web_search
+  type: skill
+  title: Web Search (DuckDuckGo)
+  description: Search the web via DuckDuckGo instant answers API.
+  tags: [search, research, web]
+  status: installed
+  requires: []
+
+- id: memory_recall
+  type: skill
+  title: Memory Recall
+  description: Retrieve relevant memories from Remnant's HNSW vector store.
+  tags: [memory, recall, context]
+  status: installed
+  requires: []
+
+# ── MCP Servers ─────────────────────────────────────────────────────
+
+- id: mcp_github
+  type: mcp
+  title: GitHub MCP Server
+  description: Full GitHub API via MCP — repos, PRs, issues, commits, code search.
+  tags: [github, mcp, code, version-control]
+  status: available
+  requires: [GITHUB_PERSONAL_ACCESS_TOKEN]
+  install_instructions: |
+    Add to Claude Code MCP config (~/.claude/claude_desktop_config.json):
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-github"],
+          "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_TOKEN" }
+        }
+      }
+    }
+
+- id: mcp_filesystem
+  type: mcp
+  title: Filesystem MCP Server
+  description: Local filesystem access via MCP — read, write, list files.
+  tags: [filesystem, mcp, files]
+  status: available
+  requires: []
+  install_instructions: |
+    Add to Claude Code MCP config:
+    {
+      "mcpServers": {
+        "filesystem": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allow"]
+        }
+      }
+    }
+
+- id: mcp_postgres
+  type: mcp
+  title: PostgreSQL MCP Server
+  description: Query PostgreSQL databases via MCP.
+  tags: [database, postgres, sql, mcp]
+  status: available
+  requires: [POSTGRES_CONNECTION_STRING]
+  install_instructions: |
+    Add to Claude Code MCP config:
+    {
+      "mcpServers": {
+        "postgres": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-postgres", "POSTGRES_CONNECTION_STRING"]
+        }
+      }
+    }
+
+- id: mcp_brave_search
+  type: mcp
+  title: Brave Search MCP Server
+  description: High-quality web search via Brave Search API through MCP.
+  tags: [search, web, mcp, brave]
+  status: available
+  requires: [BRAVE_API_KEY]
+  install_instructions: |
+    Add to Claude Code MCP config:
+    {
+      "mcpServers": {
+        "brave-search": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+          "env": { "BRAVE_API_KEY": "YOUR_KEY" }
+        }
+      }
+    }
+    Get a free API key at brave.com/search/api/

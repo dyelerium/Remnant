@@ -60,14 +60,12 @@ class Planner:
         agents_str = ", ".join(agents)
 
         prompt = (
-            f"You are a planning agent. Decompose the following request into sub-tasks.\n\n"
-            f"Request: {message}\n\n"
-            f"Available agent types: {agents_str}\n"
-            f"Memory context:\n{memory_context[:1000] if memory_context else 'None'}\n\n"
-            "Return a JSON array of tasks with fields: "
-            "task_id (string), description (string), agent_type (string), "
-            "tools (array of strings), depends_on (array of task_id strings).\n"
-            "If the request is simple and needs only one agent, return a single task."
+            f"Decompose into subtasks. JSON array only — no explanation.\n"
+            f"Request: {message}\n"
+            f"Agents: {agents_str}\n"
+            f"Context: {memory_context[:300] if memory_context else 'none'}\n"
+            f'Schema: [{{"task_id":"t1","description":"...","agent_type":"default","tools":[],"depends_on":[]}}]\n'
+            f"One task if simple."
         )
 
         try:

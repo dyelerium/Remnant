@@ -51,6 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from tools.config_tool import ConfigTool
     from tools.delegate_tool import DelegateTool
     from tools.gmail_tool import GmailTool
+    from tools.marketplace_tool import MarketplaceTool
 
     # -- Config + logging --
     cfg_loader = get_config()
@@ -103,6 +104,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # -- Tools --
     tools_cfg = config.get("tools", {})
     delegate_tool = DelegateTool()  # runtime wired below after AgentRuntime construction
+    marketplace_tool = MarketplaceTool()  # skill_registry wired below
     tool_registry = {
         "shell": ShellTool(timeout=tools_cfg.get("code_exec", {}).get("timeout_seconds", 30)),
         "http_client": HTTPTool(
@@ -123,6 +125,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         "config": ConfigTool(registry=registry, config_dir=Path("/app/config")),
         "delegate": delegate_tool,
         "gmail": GmailTool(),
+        "marketplace": marketplace_tool,
     }
 
     # -- Agent runtime --
@@ -139,6 +142,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # -- Skills --
     skill_registry = SkillRegistry("skills")
     skill_registry.load()
+    marketplace_tool.set_registry(skill_registry)  # wire after skill_registry created
 
     # -- Project manager --
     project_manager = ProjectManager(redis_client, config)
