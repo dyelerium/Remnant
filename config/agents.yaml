@@ -1,7 +1,7 @@
 agents:
   coder:
     description: Specialist agent for code generation and execution
-    llm: claude
+    llm: anthropic
     max_depth: 1
     model: claude-sonnet-4-6
     name: Coder
@@ -15,9 +15,9 @@ agents:
 
   default:
     description: General-purpose AI agent with full memory and tool access
-    llm: claude
+    llm: ollama
     max_depth: 3
-    model: ollama/qwen3:4b
+    model: qwen3:4b
     name: Remnant
     system_prompt: |
       You are Remnant — autonomous AI agent in Docker with real tools (filesystem, shell, code_exec, web).
@@ -43,7 +43,7 @@ agents:
 
   researcher:
     description: Specialist agent for web research and information gathering
-    llm: claude
+    llm: anthropic
     max_depth: 1
     model: claude-sonnet-4-6
     name: Researcher
