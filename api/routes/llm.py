@@ -23,6 +23,9 @@ async def list_providers(request: Request) -> dict:
             "key": f"{s.provider}/{s.model}",
             "provider": s.provider,
             "model": s.model,
+            # has_key: True = api_key not required (local) OR key is present
+            # False = key required but not set in env → provider not usable
+            "has_key": s.api_key is None or bool(s.api_key),
             "use_cases": s.use_cases,
             "cost_per_1k_input": s.cost_per_1k_input,
             "cost_per_1k_output": s.cost_per_1k_output,
