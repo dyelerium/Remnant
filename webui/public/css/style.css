@@ -552,7 +552,7 @@ main {
 
 .input-pill {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
   background: var(--bg3);
   border: 1px solid var(--border);
@@ -585,14 +585,13 @@ main {
   cursor: pointer;
   color: var(--text-muted);
   padding: 4px;
-  align-self: flex-end;
   line-height: 1;
   transition: color var(--transition);
 }
 .input-clip-btn:hover { color: var(--text-dim); }
 .input-right {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 6px;
   flex-shrink: 0;
 }
