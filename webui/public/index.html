@@ -1072,7 +1072,7 @@
                     <div class="form-group" style="margin:0">
                       <label class="form-label" style="font-size:11px">Model</label>
                       <select class="form-input" style="font-size:12px"
-                              x-effect="$el.value = agentsData.agents['default'].llm + '/' + agentsData.agents['default'].model"
+                              x-effect="$nextTick(() => { $el.value = agentsData.agents['default'].llm + '/' + agentsData.agents['default'].model })"
                               @change="setAgentModel('default', $event.target.value)">
                         <template x-for="m in availableModels" :key="m.key">
                           <option :value="m.key" x-text="m.provider + ' / ' + m.model"></option>
@@ -1133,7 +1133,7 @@
                     <div class="form-group" style="margin:0">
                       <label class="form-label" style="font-size:11px">Model</label>
                       <select class="form-input" style="font-size:12px"
-                              x-effect="$el.value = agent.llm + '/' + agent.model"
+                              x-effect="$nextTick(() => { $el.value = agent.llm + '/' + agent.model })"
                               @change="setAgentModel(name, $event.target.value)">
                         <template x-for="m in availableModels" :key="m.key">
                           <option :value="m.key" x-text="m.provider + ' / ' + m.model"></option>

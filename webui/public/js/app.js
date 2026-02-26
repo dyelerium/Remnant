@@ -1501,6 +1501,20 @@ document.addEventListener('alpine:init', () => {
         const resp = await fetch('/api/admin/agents');
         if (resp.ok) {
           this.agentsData = await resp.json();
+          // Normalize legacy provider names and corrupted model keys
+          const providerMap = { claude: 'anthropic', openai_compat: 'openai' };
+          for (const agent of Object.values(this.agentsData.agents || {})) {
+            // Remap legacy provider aliases (e.g. 'claude' → 'anthropic')
+            if (agent.llm && providerMap[agent.llm]) {
+              agent.llm = providerMap[agent.llm];
+            }
+            // Repair corrupted model field that contains a full 'provider/model' key
+            if (agent.model && agent.model.includes('/')) {
+              const slash = agent.model.indexOf('/');
+              agent.llm = agent.model.substring(0, slash);
+              agent.model = agent.model.substring(slash + 1);
+            }
+          }
           // Deep-copy so edits don't mutate original until saved
           this.agentsEdits = JSON.parse(JSON.stringify(this.agentsData.agents || {}));
         }
