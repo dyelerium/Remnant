@@ -1515,6 +1515,15 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
+    setAgentModel(name, key) {
+      const slash = key.indexOf('/');
+      if (slash === -1) return;
+      const llm = key.substring(0, slash);
+      const model = key.substring(slash + 1);
+      this.setAgentField(name, 'llm', llm);
+      this.setAgentField(name, 'model', model);
+    },
+
     toggleAgentTool(name, tool, checked) {
       if (!this.agentsData?.agents?.[name]) return;
       const tools = [...(this.agentsData.agents[name].tools || [])];

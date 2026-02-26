@@ -1072,10 +1072,10 @@
                     <div class="form-group" style="margin:0">
                       <label class="form-label" style="font-size:11px">Model</label>
                       <select class="form-input" style="font-size:12px"
-                              @change="setAgentField('default', 'model', $event.target.value)">
+                              x-effect="$el.value = agentsData.agents['default'].llm + '/' + agentsData.agents['default'].model"
+                              @change="setAgentModel('default', $event.target.value)">
                         <template x-for="m in availableModels" :key="m.key">
-                          <option :value="m.key" :selected="(agentsData.agents['default'].llm + '/' + agentsData.agents['default'].model) === m.key || agentsData.agents['default'].model === m.model"
-                                  x-text="m.provider + ' / ' + m.model"></option>
+                          <option :value="m.key" x-text="m.provider + ' / ' + m.model"></option>
                         </template>
                       </select>
                     </div>
@@ -1133,10 +1133,10 @@
                     <div class="form-group" style="margin:0">
                       <label class="form-label" style="font-size:11px">Model</label>
                       <select class="form-input" style="font-size:12px"
-                              @change="setAgentField(name, 'model', $event.target.value)">
+                              x-effect="$el.value = agent.llm + '/' + agent.model"
+                              @change="setAgentModel(name, $event.target.value)">
                         <template x-for="m in availableModels" :key="m.key">
-                          <option :value="m.key" :selected="(agent.llm + '/' + agent.model) === m.key || agent.model === m.model"
-                                  x-text="m.provider + ' / ' + m.model"></option>
+                          <option :value="m.key" x-text="m.provider + ' / ' + m.model"></option>
                         </template>
                       </select>
                     </div>
