@@ -32,6 +32,7 @@ def init_broadcast(redis_client, telegram_bot) -> None:
     global _redis, _telegram_bot
     _redis = redis_client
     _telegram_bot = telegram_bot
+    logger.info("[BROADCAST] init_broadcast wired — redis=%s telegram=%s", bool(redis_client), bool(telegram_bot))
 
 
 async def broadcast(message: dict) -> None:
@@ -44,6 +45,9 @@ async def broadcast(message: dict) -> None:
 
     For all other message types: WebSocket broadcast only (existing behaviour).
     """
+    logger.info("[BROADCAST] called type=%s session=%s ws_clients=%d redis=%s",
+                 message.get("type"), message.get("session_id", "")[:8],
+                 len(_ws_connections), bool(_redis))
     if message.get("type") != "proactive":
         # Non-proactive: WebSocket only
         dead: set[WebSocket] = set()
@@ -98,13 +102,16 @@ async def broadcast(message: dict) -> None:
     _ws_connections.difference_update(dead)
 
     # 3. Redis queue — deliver to web UI on next reconnect if nobody was online -
-    if ws_sent == 0 and _redis:
-        try:
-            _redis.r.lpush(_PROACTIVE_QUEUE_KEY, json.dumps(message))
-            _redis.r.expire(_PROACTIVE_QUEUE_KEY, 86400)  # 24-hour TTL
-            logger.info("[BROADCAST] No WS clients online — queued for reconnect")
-        except Exception as exc:
-            logger.warning("[BROADCAST] Redis queue failed: %s", exc)
+    if ws_sent == 0:
+        if _redis:
+            try:
+                _redis.r.lpush(_PROACTIVE_QUEUE_KEY, json.dumps(message))
+                _redis.r.expire(_PROACTIVE_QUEUE_KEY, 86400)  # 24-hour TTL
+                logger.info("[BROADCAST] No WS clients online — queued for reconnect")
+            except Exception as exc:
+                logger.warning("[BROADCAST] Redis queue failed: %s", exc)
+        else:
+            logger.warning("[BROADCAST] No WS clients AND Redis not wired — message lost (init_broadcast not called?)")
 
 
 class ChatRequest(BaseModel):
