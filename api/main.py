@@ -52,6 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from tools.delegate_tool import DelegateTool
     from tools.gmail_tool import GmailTool
     from tools.marketplace_tool import MarketplaceTool
+    from tools.schedule_tool import ScheduleTool
 
     # -- Config + logging --
     cfg_loader = get_config()
@@ -103,8 +104,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # -- Tools --
     tools_cfg = config.get("tools", {})
-    delegate_tool = DelegateTool()  # runtime wired below after AgentRuntime construction
+    delegate_tool = DelegateTool()   # runtime wired below after AgentRuntime construction
     marketplace_tool = MarketplaceTool()  # skill_registry wired below
+    schedule_tool = ScheduleTool(None)    # scheduler wired below after Scheduler construction
     tool_registry = {
         "shell": ShellTool(timeout=tools_cfg.get("code_exec", {}).get("timeout_seconds", 30)),
         "http_client": HTTPTool(
@@ -126,6 +128,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         "delegate": delegate_tool,
         "gmail": GmailTool(),
         "marketplace": marketplace_tool,
+        "schedule": schedule_tool,
     }
 
     # -- Agent runtime --
@@ -150,6 +153,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # -- Scheduler --
     scheduler = Scheduler(compactor, curator, redis_client, config)
+    schedule_tool._scheduler = scheduler               # back-fill scheduler ref
     scheduler.start()
 
     # Start Curator background worker
@@ -160,6 +164,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     import asyncio as _asyncio
     from channels.telegram_bot import TelegramBot
     from api.routes.chat import broadcast as _broadcast
+    scheduler.set_dispatch(orchestrator, _broadcast)  # wire proactive job dispatch
     _telegram_token = _os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     telegram_bot = None
     if _telegram_token:

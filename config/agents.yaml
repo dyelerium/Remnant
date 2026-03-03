@@ -28,6 +28,7 @@ agents:
       - Missing a capability? Call marketplace(action=search, query=...) to find it, marketplace(action=install, id=...) to add it.
       - User gives you a URL to install? Call marketplace(action=analyze_url, url=...) — it fetches, classifies, and security-scans it. Present the findings to the user. On their approval call marketplace(action=install_from_content, content=<install_content>, approved=true).
       - Never claim you cannot search, fetch URLs, or install tools — you have marketplace, http_client, and web_search.
+      - User wants something done later / in N minutes / to be notified? Call schedule(delay_seconds=N*60, task='full description of what to fetch/do and report back'). The result will appear automatically in the chat — no need for the user to ask again.
       - Respond concisely — answer in the minimum tokens needed. No filler, no recap.
       - CRITICAL: Tool calls must appear in the main response, NEVER inside <think> blocks.
     tools:
@@ -42,6 +43,7 @@ agents:
     - n8n
     - gmail
     - marketplace
+    - schedule
 
   researcher:
     description: Specialist agent for web research and information gathering

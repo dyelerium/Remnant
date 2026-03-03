@@ -408,6 +408,23 @@ document.addEventListener('alpine:init', () => {
         return;
       }
 
+      // Proactive agent message (scheduled task result)
+      if (msg.type === 'proactive') {
+        const chat = this.activeChat;
+        if (chat) {
+          const content = msg.content || '';
+          chat.messages.push({
+            role: 'agent',
+            raw: content,
+            streaming: false,
+            parts: parseAgentOutput(content),
+            proactive: true,
+          });
+          this.scrollToBottom();
+        }
+        return;
+      }
+
       const chat = this.activeChat;
       if (!chat) return;
       if (msg.type === 'start') return;

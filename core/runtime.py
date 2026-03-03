@@ -251,7 +251,7 @@ class AgentRuntime:
                 break
 
             # Execute tool calls (from clean text or think fallback)
-            tool_results = await self._execute_tools(tool_source, agent_node, project_id, _seen_calls)
+            tool_results = await self._execute_tools(tool_source, agent_node, project_id, _seen_calls, session_id, channel)
             all_tool_results.extend(tool_results)
 
             if tool_results:
@@ -490,6 +490,8 @@ class AgentRuntime:
         agent_node: AgentNode,
         project_id: Optional[str],
         seen_calls: Optional[dict] = None,
+        session_id: Optional[str] = None,
+        channel: str = "websocket",
     ) -> list[dict]:
         """Parse (multi-format) and execute tool calls from LLM response."""
         results = []
@@ -533,6 +535,8 @@ class AgentRuntime:
                         result_data = await self._skill_registry.invoke(
                             tool_name, tool_args, self._tool_registry,
                             agent_node=agent_node,
+                            session_id=session_id,
+                            channel=channel,
                         )
                         results.append({"tool": tool_name, "result": result_data})
                         logger.info("[RUNTIME] Skill %r OK: %s", tool_name, str(result_data)[:120])
@@ -551,7 +555,7 @@ class AgentRuntime:
                 continue
 
             try:
-                result = await tool.run(tool_args, agent_node=agent_node)
+                result = await tool.run(tool_args, agent_node=agent_node, session_id=session_id, channel=channel)
                 # Convert ToolResult to plain dict for JSON serialisation
                 result_data = result.to_dict() if hasattr(result, "to_dict") else result
                 results.append({"tool": tool_name, "result": result_data})

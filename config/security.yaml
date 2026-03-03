@@ -68,6 +68,7 @@ tool_policies:
     - config
     - delegate
     - n8n
+    - schedule
 
   # Per-project overrides
   project_overrides: {}

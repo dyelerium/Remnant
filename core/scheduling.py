@@ -17,6 +17,7 @@ class Scheduler:
     - Curator background scan (every 30 minutes)
     - Budget counter cleanup (daily)
     - Config snapshot (02:30 UTC)
+    - One-shot proactive tasks (scheduled by the agent via ScheduleTool)
     """
 
     def __init__(
@@ -31,8 +32,15 @@ class Scheduler:
         self.redis = redis_client
         self.config = config
         self._scheduler = None
+        self._orchestrator = None
+        self._broadcast = None
         from pathlib import Path
         self._config_dir = Path("/app/config") if Path("/app/config").exists() else Path("config")
+
+    def set_dispatch(self, orchestrator, broadcast_fn) -> None:
+        """Wire orchestrator and broadcast function after construction (avoids circular dep)."""
+        self._orchestrator = orchestrator
+        self._broadcast = broadcast_fn
 
     def start(self) -> None:
         """Start APScheduler with all jobs."""
@@ -89,6 +97,79 @@ class Scheduler:
         if self._scheduler and self._scheduler.running:
             self._scheduler.shutdown(wait=False)
             logger.info("[SCHEDULER] Stopped")
+
+    # ------------------------------------------------------------------
+    # Proactive one-shot scheduling (agent-triggered)
+    # ------------------------------------------------------------------
+
+    def schedule_once(
+        self,
+        delay_seconds: float,
+        task: str,
+        session_id: str,
+        channel: str = "websocket",
+    ) -> str:
+        """Schedule a one-shot proactive task. Returns the job ID."""
+        import uuid
+        from datetime import datetime, timedelta
+
+        job_id = f"proactive_{uuid.uuid4().hex[:8]}"
+
+        if self._scheduler and self._scheduler.running:
+            run_at = datetime.now() + timedelta(seconds=delay_seconds)
+            self._scheduler.add_job(
+                self._proactive_job,
+                "date",
+                run_date=run_at,
+                args=[task, session_id, channel],
+                id=job_id,
+                replace_existing=True,
+            )
+            logger.info(
+                "[SCHEDULER] Proactive job %s in %.0fs at %s: %s",
+                job_id, delay_seconds, run_at.strftime("%H:%M:%S"), task[:60],
+            )
+        else:
+            # APScheduler not running — fall back to an asyncio task
+            asyncio.create_task(self._delayed_job(delay_seconds, task, session_id, channel))
+            logger.info(
+                "[SCHEDULER] Proactive asyncio task in %.0fs (APScheduler unavailable): %s",
+                delay_seconds, task[:60],
+            )
+
+        return job_id
+
+    async def _proactive_job(self, task: str, session_id: str, channel: str) -> None:
+        """Execute a scheduled task through the orchestrator and broadcast the result."""
+        if not self._orchestrator or not self._broadcast:
+            logger.error("[SCHEDULER] Proactive job fired but orchestrator/broadcast not set — call set_dispatch()")
+            return
+
+        logger.info("[SCHEDULER] Firing proactive job for session=%s: %s", session_id[:8], task[:60])
+        full_response = ""
+        try:
+            async for chunk in self._orchestrator.handle(
+                message=task,
+                session_id=session_id,
+                channel=channel,
+                memory_context="",
+            ):
+                full_response += chunk
+        except Exception as exc:
+            logger.error("[SCHEDULER] Proactive job failed: %s", exc)
+            full_response = f"[Scheduled task error: {exc}]"
+
+        await self._broadcast({
+            "type": "proactive",
+            "content": full_response,
+            "session_id": session_id,
+            "task": task,
+        })
+
+    async def _delayed_job(self, delay: float, task: str, session_id: str, channel: str) -> None:
+        """Asyncio fallback when APScheduler is unavailable."""
+        await asyncio.sleep(delay)
+        await self._proactive_job(task, session_id, channel)
 
     # ------------------------------------------------------------------
     # Job implementations
