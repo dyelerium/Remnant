@@ -20,16 +20,57 @@ _ws_connections: set[WebSocket] = set()
 # Per-WS-session cancel events — keyed by session_id, set when client sends {"type":"stop"}
 _ws_cancel_events: dict[str, asyncio.Event] = {}
 
+# Wired during startup for channel-aware routing
+_redis = None
+_telegram_bot = None
+
+_PROACTIVE_QUEUE_KEY = "remnant:proactive_queue"
+
+
+def init_broadcast(redis_client, telegram_bot) -> None:
+    """Wire Redis and Telegram bot so broadcast can route and queue messages."""
+    global _redis, _telegram_bot
+    _redis = redis_client
+    _telegram_bot = telegram_bot
+
 
 async def broadcast(message: dict) -> None:
-    """Push a JSON message to all currently connected WebSocket clients."""
+    """Push a JSON message to WebSocket clients, Telegram, or Redis queue as appropriate."""
+    session_id = message.get("session_id", "")
+
+    # Route Telegram-originated sessions back to Telegram
+    if session_id.startswith("tg-") and _telegram_bot:
+        chat_id_str = session_id[3:]  # strip "tg-" prefix
+        content = message.get("content", "")
+        label = message.get("label") or message.get("task", "")[:40]
+        text = f"**{label}**\n\n{content}" if label else content
+        if text:
+            try:
+                await _telegram_bot.send_message(chat_id_str, text)
+                return
+            except Exception as exc:
+                logger.warning("[BROADCAST] Telegram send failed for %s: %s", session_id, exc)
+        return  # Don't also push to WebSocket for Telegram sessions
+
+    # WebSocket broadcast
     dead: set[WebSocket] = set()
+    sent = 0
     for ws in list(_ws_connections):  # snapshot to allow safe removal
         try:
             await ws.send_json(message)
+            sent += 1
         except Exception:
             dead.add(ws)
     _ws_connections.difference_update(dead)  # in-place, no rebind
+
+    # If nobody was connected, queue in Redis for delivery on next reconnect
+    if sent == 0 and message.get("type") in ("proactive",) and _redis:
+        try:
+            _redis.r.lpush(_PROACTIVE_QUEUE_KEY, json.dumps(message))
+            _redis.r.expire(_PROACTIVE_QUEUE_KEY, 86400)  # 24-hour TTL
+            logger.info("[BROADCAST] No WS clients — queued proactive message for later delivery")
+        except Exception as exc:
+            logger.warning("[BROADCAST] Failed to queue proactive message: %s", exc)
 
 
 class ChatRequest(BaseModel):
@@ -103,16 +144,29 @@ async def websocket_chat(ws: WebSocket) -> None:
     _ws_connections.add(ws)
     current_session_id: Optional[str] = None
 
+    # Drain any queued proactive messages that fired while no client was connected
+    try:
+        redis = ws.app.state.redis
+        queued_raw = redis.r.lrange(_PROACTIVE_QUEUE_KEY, 0, -1)
+        if queued_raw:
+            redis.r.delete(_PROACTIVE_QUEUE_KEY)
+            for raw_entry in reversed(queued_raw):  # LPUSH = newest first → deliver oldest first
+                try:
+                    await ws.send_json(json.loads(raw_entry))
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     # Push any queued Telegram inbox messages to this new connection
     try:
         redis = ws.app.state.redis
         inbox_raw = await asyncio.get_event_loop().run_in_executor(
             None, lambda: redis.r.lrange("remnant:telegram_inbox", 0, 49)
         )
-        import json as _json
         for raw_entry in reversed(inbox_raw):
             try:
-                entry = _json.loads(raw_entry)
+                entry = json.loads(raw_entry)
                 await ws.send_json({"type": "tg_message", **entry})
             except Exception:
                 pass

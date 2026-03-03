@@ -167,7 +167,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     import os as _os
     import asyncio as _asyncio
     from channels.telegram_bot import TelegramBot
-    from api.routes.chat import broadcast as _broadcast
+    from api.routes.chat import broadcast as _broadcast, init_broadcast as _init_broadcast
     scheduler.set_dispatch(orchestrator, _broadcast)  # wire proactive job dispatch
     scheduler.restore_reminders(reminder_tool)         # re-register pending reminders from Redis
     _telegram_token = _os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
@@ -178,6 +178,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("[TELEGRAM] Bot started")
     else:
         logger.info("[TELEGRAM] No TELEGRAM_BOT_TOKEN set — bot disabled")
+    _init_broadcast(redis_client, telegram_bot)  # wire channel-aware routing + Redis queue
 
     # Expose singletons via app.state
     app.state.config = config
