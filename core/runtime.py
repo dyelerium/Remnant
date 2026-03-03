@@ -434,11 +434,14 @@ class AgentRuntime:
     def _should_execute_tools(self, response: str) -> bool:
         """Check if LLM response contains tool call markers (any supported format)."""
         lower = response.lower()
-        return (
+        if (
             "```tool" in lower          # JSON block format
             or "<tool_call>" in lower   # XML function-call format
             or "<tool>" in lower        # simple XML tag
-        )
+        ):
+            return True
+        # Format 4: ```{tool_name}\n{args json}\n``` — qwen3/ollama native style
+        return bool(re.search(r"```\w+\s*\n\s*\{", response))
 
     def _strip_tool_blocks(self, response: str) -> str:
         """Remove tool call blocks (all formats) from text."""
@@ -448,6 +451,8 @@ class AgentRuntime:
         text = re.sub(r"<tool_call>.*?</tool_call>", "", text, flags=re.DOTALL)
         # Strip simple <tool> blocks
         text = re.sub(r"<tool>.*?</tool>", "", text, flags=re.DOTALL)
+        # Strip format 4: ```tool_name\n{args}\n``` (qwen3 native style)
+        text = re.sub(r"```\w+\s*\n\s*\{.*?\}\s*\n```", "", text, flags=re.DOTALL)
         return text.strip()
 
     def _parse_tool_calls(self, response: str) -> list[tuple[str, dict]]:
@@ -479,6 +484,18 @@ class AgentRuntime:
             try:
                 obj = json.loads(match.group(1).strip())
                 calls.append((obj.get("name", ""), obj.get("args", {})))
+            except json.JSONDecodeError:
+                pass
+
+        # Format 4: ```tool_name\n{args json}\n``` — qwen3/ollama native style
+        # tool name is the code block language tag; body is raw args (no name/args wrapper)
+        for match in re.finditer(r"```(\w+)\s*\n(\{.*?\})\s*\n```", response, re.DOTALL):
+            tool_name = match.group(1)
+            if tool_name == "tool":
+                continue  # already handled as format 1
+            try:
+                args = json.loads(match.group(2).strip())
+                calls.append((tool_name, args))
             except json.JSONDecodeError:
                 pass
 
