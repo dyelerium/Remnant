@@ -35,42 +35,76 @@ def init_broadcast(redis_client, telegram_bot) -> None:
 
 
 async def broadcast(message: dict) -> None:
-    """Push a JSON message to WebSocket clients, Telegram, or Redis queue as appropriate."""
-    session_id = message.get("session_id", "")
+    """Push a message to all reachable channels.
 
-    # Route Telegram-originated sessions back to Telegram
+    For proactive messages (reminders / scheduled tasks):
+      1. Originating channel — Telegram or WhatsApp get the result back directly
+      2. All connected WebSocket clients — web UI sees it immediately if open
+      3. Redis queue — web UI delivers it on next reconnect if offline
+
+    For all other message types: WebSocket broadcast only (existing behaviour).
+    """
+    if message.get("type") != "proactive":
+        # Non-proactive: WebSocket only
+        dead: set[WebSocket] = set()
+        for ws in list(_ws_connections):
+            try:
+                await ws.send_json(message)
+            except Exception:
+                dead.add(ws)
+        _ws_connections.difference_update(dead)
+        return
+
+    # ------------------------------------------------------------------ #
+    # Proactive fan-out
+    # ------------------------------------------------------------------ #
+    session_id = message.get("session_id", "")
+    content = message.get("content", "")
+    label = message.get("label") or message.get("task", "")[:40]
+
+    # 1. Originating channel -----------------------------------------
     if session_id.startswith("tg-") and _telegram_bot:
-        chat_id_str = session_id[3:]  # strip "tg-" prefix
-        content = message.get("content", "")
-        label = message.get("label") or message.get("task", "")[:40]
-        text = f"**{label}**\n\n{content}" if label else content
+        text = f"*{label}*\n\n{content}" if label else content
         if text:
             try:
-                await _telegram_bot.send_message(chat_id_str, text)
-                return
+                await _telegram_bot.send_message(session_id[3:], text)
+                logger.info("[BROADCAST] Proactive → Telegram %s", session_id)
             except Exception as exc:
-                logger.warning("[BROADCAST] Telegram send failed for %s: %s", session_id, exc)
-        return  # Don't also push to WebSocket for Telegram sessions
+                logger.warning("[BROADCAST] Telegram send failed (%s): %s", session_id, exc)
 
-    # WebSocket broadcast
+    elif session_id.startswith("wa-"):
+        import os
+        import httpx
+        phone = session_id[3:]
+        text = f"{label}\n\n{content}" if label else content
+        if text:
+            sidecar = os.environ.get("WHATSAPP_SIDECAR_URL", "http://remnant-whatsapp:3000")
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as _c:
+                    await _c.post(f"{sidecar}/send", json={"phone": phone, "message": text})
+                logger.info("[BROADCAST] Proactive → WhatsApp %s", phone)
+            except Exception as exc:
+                logger.warning("[BROADCAST] WhatsApp send failed (%s): %s", phone, exc)
+
+    # 2. WebSocket push (all live clients, regardless of originating channel) ---
     dead: set[WebSocket] = set()
-    sent = 0
-    for ws in list(_ws_connections):  # snapshot to allow safe removal
+    ws_sent = 0
+    for ws in list(_ws_connections):
         try:
             await ws.send_json(message)
-            sent += 1
+            ws_sent += 1
         except Exception:
             dead.add(ws)
-    _ws_connections.difference_update(dead)  # in-place, no rebind
+    _ws_connections.difference_update(dead)
 
-    # If nobody was connected, queue in Redis for delivery on next reconnect
-    if sent == 0 and message.get("type") in ("proactive",) and _redis:
+    # 3. Redis queue — deliver to web UI on next reconnect if nobody was online -
+    if ws_sent == 0 and _redis:
         try:
             _redis.r.lpush(_PROACTIVE_QUEUE_KEY, json.dumps(message))
             _redis.r.expire(_PROACTIVE_QUEUE_KEY, 86400)  # 24-hour TTL
-            logger.info("[BROADCAST] No WS clients — queued proactive message for later delivery")
+            logger.info("[BROADCAST] No WS clients online — queued for reconnect")
         except Exception as exc:
-            logger.warning("[BROADCAST] Failed to queue proactive message: %s", exc)
+            logger.warning("[BROADCAST] Redis queue failed: %s", exc)
 
 
 class ChatRequest(BaseModel):
