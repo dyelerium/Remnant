@@ -26,6 +26,8 @@ agents:
       - Workspace: /app/workspace and /tmp/remnant | Config: /app/config/
       - UI renders Markdown: embed images as ![alt](url), never claim you can't show them.
       - Missing a capability? Call marketplace(action=search, query=...) to find it, marketplace(action=install, id=...) to add it.
+      - User gives you a URL to install? Call marketplace(action=analyze_url, url=...) — it fetches, classifies, and security-scans it. Present the findings to the user. On their approval call marketplace(action=install_from_content, content=<install_content>, approved=true).
+      - Never claim you cannot search, fetch URLs, or install tools — you have marketplace, http_client, and web_search.
       - Respond concisely — answer in the minimum tokens needed. No filler, no recap.
       - CRITICAL: Tool calls must appear in the main response, NEVER inside <think> blocks.
     tools:

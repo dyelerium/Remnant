@@ -4,6 +4,7 @@ Agent runtime — RECALL → PLAN → LLM → TOOLS → RECORD → CURATE loop p
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -179,6 +180,7 @@ class AgentRuntime:
         all_tool_results: list[dict] = []
         _base_ctx_len = len(messages)  # snapshot before tool rounds begin
         _MAX_CTX_ROUNDS = 3             # sliding window: keep last N tool-round pairs
+        _seen_calls: dict[str, int] = {}  # fingerprint → call count (loop guard)
 
         for _round in range(self._max_tool_rounds + 1):
             # Check cancellation before each round
@@ -249,7 +251,7 @@ class AgentRuntime:
                 break
 
             # Execute tool calls (from clean text or think fallback)
-            tool_results = await self._execute_tools(tool_source, agent_node, project_id)
+            tool_results = await self._execute_tools(tool_source, agent_node, project_id, _seen_calls)
             all_tool_results.extend(tool_results)
 
             if tool_results:
@@ -487,6 +489,7 @@ class AgentRuntime:
         response: str,
         agent_node: AgentNode,
         project_id: Optional[str],
+        seen_calls: Optional[dict] = None,
     ) -> list[dict]:
         """Parse (multi-format) and execute tool calls from LLM response."""
         results = []
@@ -494,6 +497,28 @@ class AgentRuntime:
         for tool_name, tool_args in self._parse_tool_calls(response):
             if not tool_name:
                 continue
+
+            # Loop guard: same tool + same args called ≥2 times → short-circuit
+            if seen_calls is not None:
+                fp = hashlib.md5(
+                    f"{tool_name}:{json.dumps(tool_args, sort_keys=True, default=str)}".encode()
+                ).hexdigest()
+                count = seen_calls.get(fp, 0) + 1
+                seen_calls[fp] = count
+                if count >= 2:
+                    logger.warning(
+                        "[RUNTIME] Loop detected: %r called %d times with identical args — skipping",
+                        tool_name, count,
+                    )
+                    results.append({
+                        "tool": tool_name,
+                        "error": (
+                            f"Loop detected: '{tool_name}' was called with identical arguments "
+                            f"{count} times in this session. Stop retrying — give a final answer "
+                            "based on information already gathered."
+                        ),
+                    })
+                    continue
 
             if not self.security.check_tool_policy(tool_name, project_id):
                 logger.warning("[RUNTIME] Tool %r denied by policy", tool_name)
