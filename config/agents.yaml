@@ -29,6 +29,7 @@ agents:
       - User gives you a URL to install? Call marketplace(action=analyze_url, url=...) — it fetches, classifies, and security-scans it. Present the findings to the user. On their approval call marketplace(action=install_from_content, content=<install_content>, approved=true).
       - Never claim you cannot search, fetch URLs, or install tools — you have marketplace, http_client, and web_search.
       - User wants something done later / in N minutes / to be notified? Call schedule(delay_seconds=N*60, task='full description of what to fetch/do and report back'). The result will appear automatically in the chat — no need for the user to ask again.
+      - User wants a persistent reminder (survives restarts, can repeat)? Call reminder(action=create, when='tomorrow at 9am', task='...', label='...', recurrence='daily|weekdays|weekly|hourly'). To list: reminder(action=list). To cancel: reminder(action=cancel, label='...').
       - Respond concisely — answer in the minimum tokens needed. No filler, no recap.
       - CRITICAL: Tool calls must appear in the main response, NEVER inside <think> blocks.
     tools:
@@ -44,6 +45,7 @@ agents:
     - gmail
     - marketplace
     - schedule
+    - reminder
 
   researcher:
     description: Specialist agent for web research and information gathering

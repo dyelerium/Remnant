@@ -69,6 +69,7 @@ tool_policies:
     - delegate
     - n8n
     - schedule
+    - reminder
 
   # Per-project overrides
   project_overrides: {}

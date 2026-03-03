@@ -34,6 +34,7 @@ class Scheduler:
         self._scheduler = None
         self._orchestrator = None
         self._broadcast = None
+        self._reminder_tool = None
         from pathlib import Path
         self._config_dir = Path("/app/config") if Path("/app/config").exists() else Path("config")
 
@@ -170,6 +171,118 @@ class Scheduler:
         """Asyncio fallback when APScheduler is unavailable."""
         await asyncio.sleep(delay)
         await self._proactive_job(task, session_id, channel)
+
+    # ------------------------------------------------------------------
+    # Persistent reminder scheduling
+    # ------------------------------------------------------------------
+
+    def schedule_reminder(self, rem_id: str, fire_at, recurrence: Optional[str] = None) -> None:
+        """Register an APScheduler date job for a persistent reminder."""
+        from datetime import datetime
+
+        if not self._scheduler:
+            logger.warning("[SCHEDULER] schedule_reminder called before scheduler started — reminder %s will not fire", rem_id)
+            return
+
+        job_id = f"reminder_{rem_id}"
+        if isinstance(fire_at, str):
+            fire_at = datetime.fromisoformat(fire_at)
+
+        self._scheduler.add_job(
+            self._fire_reminder,
+            "date",
+            run_date=fire_at,
+            args=[rem_id],
+            id=job_id,
+            replace_existing=True,
+        )
+        logger.info("[SCHEDULER] Reminder %s scheduled for %s (recurrence=%s)", rem_id, fire_at, recurrence)
+
+    def restore_reminders(self, reminder_tool) -> None:
+        """Re-register all pending reminders from Redis on startup (survives restarts)."""
+        from datetime import datetime
+
+        self._reminder_tool = reminder_tool
+        try:
+            pending = reminder_tool.list_pending_raw()
+        except Exception as exc:
+            logger.error("[SCHEDULER] Failed to load pending reminders: %s", exc)
+            return
+
+        now = datetime.now()
+        restored = 0
+        missed = 0
+        for rem_id, fire_at in pending:
+            if fire_at <= now:
+                # Missed while server was down — fire immediately
+                logger.info("[SCHEDULER] Reminder %s missed (was %s) — firing immediately", rem_id, fire_at)
+                asyncio.create_task(self._fire_reminder(rem_id))
+                missed += 1
+            else:
+                reminder = reminder_tool.get_reminder(rem_id)
+                recurrence = reminder.get("recurrence") if reminder else None
+                self.schedule_reminder(rem_id, fire_at, recurrence)
+                restored += 1
+
+        logger.info("[SCHEDULER] Restored %d reminder(s), fired %d missed", restored, missed)
+
+    async def _fire_reminder(self, rem_id: str) -> None:
+        """Execute a persistent reminder — runs task, broadcasts result, handles recurrence."""
+        from datetime import datetime
+
+        if not self._reminder_tool:
+            logger.error("[SCHEDULER] _fire_reminder called but _reminder_tool not set")
+            return
+
+        reminder = self._reminder_tool.get_reminder(rem_id)
+        if not reminder or reminder.get("status") != "pending":
+            logger.debug("[SCHEDULER] Reminder %s not pending (status=%s) — skipping", rem_id, reminder.get("status") if reminder else "missing")
+            return
+
+        task = reminder.get("task", "")
+        session_id = reminder.get("session_id", "default")
+        channel = reminder.get("channel", "websocket")
+        recurrence = reminder.get("recurrence") or None
+        label = reminder.get("label", rem_id)
+
+        logger.info("[SCHEDULER] Firing reminder %s (%s): %s", rem_id, label, task[:60])
+        fired_at = datetime.now()
+        self._reminder_tool.mark_fired(rem_id)
+
+        # Run the task through the orchestrator (same as proactive jobs)
+        full_response = ""
+        if self._orchestrator and self._broadcast:
+            try:
+                async for chunk in self._orchestrator.handle(
+                    message=task,
+                    session_id=session_id,
+                    channel=channel,
+                    memory_context="",
+                ):
+                    full_response += chunk
+            except Exception as exc:
+                logger.error("[SCHEDULER] Reminder %s task failed: %s", rem_id, exc)
+                full_response = f"[Reminder '{label}' error: {exc}]"
+
+            await self._broadcast({
+                "type": "proactive",
+                "content": full_response,
+                "session_id": session_id,
+                "reminder_id": rem_id,
+                "label": label,
+                "task": task,
+            })
+        else:
+            logger.warning("[SCHEDULER] Reminder %s fired but no orchestrator/broadcast — call set_dispatch()", rem_id)
+
+        # Handle recurrence
+        if recurrence:
+            from tools.reminder_tool import ReminderTool
+            next_fire = ReminderTool.compute_next_fire(fired_at, recurrence)
+            if next_fire:
+                self._reminder_tool.reschedule(rem_id, next_fire)
+                self.schedule_reminder(rem_id, next_fire, recurrence)
+                logger.info("[SCHEDULER] Reminder %s rescheduled (%s) → %s", rem_id, recurrence, next_fire)
 
     # ------------------------------------------------------------------
     # Job implementations

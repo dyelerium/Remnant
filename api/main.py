@@ -53,6 +53,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from tools.gmail_tool import GmailTool
     from tools.marketplace_tool import MarketplaceTool
     from tools.schedule_tool import ScheduleTool
+    from tools.reminder_tool import ReminderTool
 
     # -- Config + logging --
     cfg_loader = get_config()
@@ -107,6 +108,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     delegate_tool = DelegateTool()   # runtime wired below after AgentRuntime construction
     marketplace_tool = MarketplaceTool()  # skill_registry wired below
     schedule_tool = ScheduleTool(None)    # scheduler wired below after Scheduler construction
+    reminder_tool = ReminderTool(redis_client)  # scheduler wired below
     tool_registry = {
         "shell": ShellTool(timeout=tools_cfg.get("code_exec", {}).get("timeout_seconds", 30)),
         "http_client": HTTPTool(
@@ -129,6 +131,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         "gmail": GmailTool(),
         "marketplace": marketplace_tool,
         "schedule": schedule_tool,
+        "reminder": reminder_tool,
     }
 
     # -- Agent runtime --
@@ -154,6 +157,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # -- Scheduler --
     scheduler = Scheduler(compactor, curator, redis_client, config)
     schedule_tool._scheduler = scheduler               # back-fill scheduler ref
+    reminder_tool.set_scheduler(scheduler)             # back-fill scheduler ref
     scheduler.start()
 
     # Start Curator background worker
@@ -165,6 +169,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from channels.telegram_bot import TelegramBot
     from api.routes.chat import broadcast as _broadcast
     scheduler.set_dispatch(orchestrator, _broadcast)  # wire proactive job dispatch
+    scheduler.restore_reminders(reminder_tool)         # re-register pending reminders from Redis
     _telegram_token = _os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     telegram_bot = None
     if _telegram_token:
@@ -196,6 +201,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.agent_graph = agent_graph
     app.state.lane_manager = lane_manager
     app.state.scheduler = scheduler
+    app.state.reminder_tool = reminder_tool
     app.state.audit = audit
     app.state.broadcast = _broadcast  # WebSocket push for WhatsApp / server-initiated events
     app.state.telegram_bot = telegram_bot
