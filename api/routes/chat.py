@@ -35,6 +35,29 @@ def init_broadcast(redis_client, telegram_bot) -> None:
     logger.info("[BROADCAST] init_broadcast wired — redis=%s telegram=%s", bool(redis_client), bool(telegram_bot))
 
 
+async def _mirror_to_telegram(user_message: str, response_chunks: list, redis) -> None:
+    """Mirror a web UI conversation to Telegram if a primary chat is configured."""
+    if not _telegram_bot:
+        return
+    try:
+        raw = redis.r.get("remnant:telegram_primary_chat")
+        if not raw:
+            return
+        chat_id = raw.decode() if isinstance(raw, bytes) else raw
+        import re as _re
+        full = "".join(response_chunks)
+        # Strip runtime badge lines ([GEN], [EXE], [MEM], etc.)
+        clean = _re.sub(r"^\[(GEN|EXE|MEM|REC|PLAN|ERR|SYS|USE)\].*\n?", "", full, flags=_re.MULTILINE).strip()
+        if not clean:
+            return
+        text = f"💻 *Web UI*\n👤 {user_message}\n\n{clean}"
+        for i in range(0, len(text), 4000):
+            await _telegram_bot.send_message(chat_id, text[i:i + 4000])
+        logger.info("[WS→TG] Mirrored web UI response to Telegram chat %s", chat_id)
+    except Exception as exc:
+        logger.warning("[WS→TG] Mirror to Telegram failed: %s", exc)
+
+
 async def broadcast(message: dict) -> None:
     """Push a message to all reachable channels.
 
@@ -268,6 +291,7 @@ async def websocket_chat(ws: WebSocket) -> None:
 
             await ws.send_json({"type": "start", "session_id": session_id})
 
+            response_parts: list[str] = []
             try:
                 async for chunk in orchestrator.handle(
                     message=message,
@@ -281,11 +305,18 @@ async def websocket_chat(ws: WebSocket) -> None:
                 ):
                     if cancel_event.is_set():
                         break
+                    response_parts.append(chunk)
                     await ws.send_json({"type": "chunk", "content": chunk})
             finally:
                 _ws_cancel_events.pop(session_id, None)
 
             await ws.send_json({"type": "done", "session_id": session_id})
+
+            # Mirror to Telegram so web UI and Telegram stay in sync
+            try:
+                await _mirror_to_telegram(message, response_parts, ws.app.state.redis)
+            except Exception:
+                pass
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")

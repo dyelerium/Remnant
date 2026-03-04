@@ -81,6 +81,7 @@ class TelegramBot:
             }
 
             # Persist to Redis inbox so reconnecting clients can fetch it
+            # Also store primary chat_id so web UI can mirror back to Telegram
             if self._redis:
                 try:
                     import json as _json
@@ -90,6 +91,7 @@ class TelegramBot:
                         lambda: (
                             self._redis.r.lpush("remnant:telegram_inbox", entry),
                             self._redis.r.ltrim("remnant:telegram_inbox", 0, 99),
+                            self._redis.r.set("remnant:telegram_primary_chat", chat_id),
                         ),
                     )
                 except Exception as _exc:
