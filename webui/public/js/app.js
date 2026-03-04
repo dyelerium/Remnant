@@ -732,6 +732,15 @@ document.addEventListener('alpine:init', () => {
     /* ================================================================
        CHAT MANAGEMENT
        ================================================================ */
+    clearChat() {
+      const chat = this.activeChat;
+      if (!chat || chat.messages.length === 0) return;
+      // Archive current messages, start fresh (Redis history untouched)
+      chat.archivedMessages = [...(chat.archivedMessages || []), ...chat.messages];
+      chat.messages = [];
+      chat.clearedAt = new Date().toISOString();
+    },
+
     newChat() {
       const chat = {
         id: uid(),

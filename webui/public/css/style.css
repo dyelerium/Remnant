@@ -637,6 +637,19 @@ main {
   background: rgba(16,185,129,0.15);
   border-color: rgba(16,185,129,0.5);
 }
+.clear-chip {
+  font-size: 14px;
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 6px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity var(--transition), background var(--transition);
+}
+.clear-chip:hover:not(:disabled) { opacity: 0.8; background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.4); }
+.clear-chip:disabled { opacity: 0.2; cursor: not-allowed; }
 .input-pill .btn-stop {
   height: 30px;
   padding: 0 10px;

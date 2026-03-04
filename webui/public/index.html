@@ -382,6 +382,9 @@
           :disabled="isStreaming" @focus="inputFocused=true" @blur="inputFocused=false"></textarea>
         <div class="input-right">
           <span class="model-chip" x-text="shortModelName" x-show="shortModelName"></span>
+          <button class="clear-chip" @click="clearChat()"
+                  :disabled="isStreaming || !activeChat || activeMessages.length === 0"
+                  title="Clear chat (archives messages, keeps AI memory)">🧹</button>
           <button class="budget-chip" :class="{ active: budgetModeEnabled }"
                   @click="budgetModeEnabled = !budgetModeEnabled"
                   title="Budget mode: auto-select cheapest capable model">💰</button>
