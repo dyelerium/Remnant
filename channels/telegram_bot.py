@@ -169,12 +169,27 @@ class TelegramBot:
             except Exception:
                 memory_context = ""
 
+            # Load active project for this chat
+            active_project_id = await self._get_active_project(chat_id)
+            project_display_name = ""
+            if active_project_id and self._project_manager:
+                proj = await asyncio.get_event_loop().run_in_executor(
+                    None, self._project_manager.get, active_project_id
+                )
+                if proj:
+                    project_display_name = proj.get("name") or active_project_id
+                else:
+                    # Project was deleted — clear stale state
+                    await self._set_active_project(chat_id, None)
+                    active_project_id = None
+
             response_parts = []
             async for chunk in self._orchestrator.handle(
                 message=text,
                 session_id=f"tg-{chat_id}",
                 channel="telegram",
                 memory_context=memory_context,
+                project_id=active_project_id or None,
             ):
                 response_parts.append(chunk)
 
@@ -183,6 +198,10 @@ class TelegramBot:
             response_text = re.sub(r"^\[GEN\] ", "", response_text)
             response_text = re.sub(r"\[EXE\] \d+ tool\(s\) executed\n?", "", response_text)
             response_text = response_text.strip()
+
+            # Prefix with project name when in project mode
+            if active_project_id and project_display_name and response_text:
+                response_text = f"[{project_display_name}]\n\n{response_text}"
 
             if response_text:
                 # Telegram max message length is 4096 chars
@@ -197,6 +216,7 @@ class TelegramBot:
                 "chat_id": chat_id,
                 "user_message": text,
                 "response": response_text,
+                "project_id": active_project_id or None,
             }
 
             # Persist to Redis inbox so reconnecting clients can fetch it

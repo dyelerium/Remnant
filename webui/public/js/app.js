@@ -578,6 +578,28 @@ document.addEventListener('alpine:init', () => {
         }
       }
 
+      // If project mode active: also mirror into the project chat in the sidebar
+      if (msg.project_id) {
+        const projSessionId = `tg-proj-${msg.project_id}`;
+        const projIdx = this.chats.findIndex(c => c.sessionId === projSessionId);
+        if (projIdx === -1) {
+          this.chats.splice(1, 0, {
+            id: uid(),
+            title: `📱 ${msg.project_id}`,
+            projectId: msg.project_id,
+            sessionId: projSessionId,
+            messages: [...newMessages],
+            ts: new Date().toISOString(),
+            channel: 'telegram',
+            telegramSource: true,
+          });
+        } else {
+          for (const m of newMessages) {
+            this.chats[projIdx].messages.push(m);
+          }
+        }
+      }
+
       if (!this.isStreaming) {
         const targetChat = existing === -1 ? this.chats[0] : this.chats[existing];
         this.activeChatId = targetChat.id;
