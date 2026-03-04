@@ -54,6 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from tools.marketplace_tool import MarketplaceTool
     from tools.schedule_tool import ScheduleTool
     from tools.reminder_tool import ReminderTool
+    from tools.web_search_tool import WebSearchTool
 
     # -- Config + logging --
     cfg_loader = get_config()
@@ -132,6 +133,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         "marketplace": marketplace_tool,
         "schedule": schedule_tool,
         "reminder": reminder_tool,
+        "web_search": WebSearchTool(timeout=tools_cfg.get("http_client", {}).get("timeout_seconds", 15)),
     }
 
     # -- Agent runtime --
