@@ -719,6 +719,56 @@ main {
   animation: fadeIn 0.15s ease;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.lightbox-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 92vw;
+  max-height: 92vh;
+}
+.lightbox-close {
+  position: absolute;
+  top: -16px;
+  right: -16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: background var(--transition);
+}
+.lightbox-close:hover { background: var(--bg4); }
+.lightbox-hint {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 8px;
+  pointer-events: none;
+}
+.lightbox-img-wrap {
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 90vw;
+  max-height: 85vh;
+}
+.lightbox-img {
+  max-width: 90vw;
+  max-height: 85vh;
+  border-radius: 8px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.7);
+  transition: transform 0.1s ease;
+  cursor: zoom-in;
+  display: block;
+}
 
 .modal {
   background: var(--bg2);

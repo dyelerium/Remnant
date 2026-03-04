@@ -206,6 +206,7 @@ document.addEventListener('alpine:init', () => {
     /* --- Image modal --- */
     imageModalOpen: false,
     imageModalSrc: null,
+    imageZoom: 1,
 
     /* --- Wizard --- */
     wizardOpen: false,
@@ -334,6 +335,15 @@ document.addEventListener('alpine:init', () => {
 
       // Ensure textarea renders with correct initial height
       this.autoResize();
+
+      // Escape key closes image lightbox
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && this.imageModalOpen) {
+          this.imageModalOpen = false;
+          this.imageModalSrc = null;
+          this.imageZoom = 1;
+        }
+      });
     },
 
     /* ================================================================
