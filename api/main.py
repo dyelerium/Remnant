@@ -175,7 +175,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _telegram_token = _os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     telegram_bot = None
     if _telegram_token:
-        telegram_bot = TelegramBot(_telegram_token, orchestrator, retriever, broadcast_fn=_broadcast, redis_client=redis_client)
+        telegram_bot = TelegramBot(_telegram_token, orchestrator, retriever, broadcast_fn=_broadcast, redis_client=redis_client, project_manager=project_manager)
         telegram_bot._task = _asyncio.create_task(telegram_bot.start())
         logger.info("[TELEGRAM] Bot started")
     else:
