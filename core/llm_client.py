@@ -190,12 +190,14 @@ class LLMClient:
         messages: list[dict],
         max_tokens: Optional[int],
         temperature: float,
+        tools: Optional[list] = None,
         **kwargs,
     ) -> dict:
         if spec.provider == "anthropic":
+            # tools not passed — Anthropic uses streaming; non-streaming path doesn't support tools
             return self._chat_anthropic(spec, messages, max_tokens, temperature, **kwargs)
         elif spec.provider in _OPENAI_COMPAT_PROVIDERS:
-            return self._chat_openai_compat(spec, messages, max_tokens, temperature, **kwargs)
+            return self._chat_openai_compat(spec, messages, max_tokens, temperature, tools=tools, **kwargs)
         elif spec.provider == "ollama":
             return self._chat_ollama(spec, messages, max_tokens, temperature)
         else:
