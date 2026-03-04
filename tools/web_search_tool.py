@@ -13,6 +13,22 @@ logger = logging.getLogger(__name__)
 
 _DDG_API = "https://api.duckduckgo.com/"
 _DDG_BASE = "https://duckduckgo.com"
+
+# Stock photo / paywalled sites that block hotlinking — images from these domains
+# show as broken when embedded in markdown
+_BLOCKED_IMAGE_DOMAINS = {
+    "alamy.com",
+    "gettyimages.com",
+    "istockphoto.com",
+    "shutterstock.com",
+    "stock.adobe.com",
+    "dreamstime.com",
+    "depositphotos.com",
+    "123rf.com",
+    "bigstockphoto.com",
+    "pond5.com",
+}
+
 _BROWSER_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -58,8 +74,13 @@ class WebSearchTool(BaseTool):
                 },
             )
             # Bing encodes full image URLs as murl&quot;:&quot;{url}&quot;
-            urls = re.findall(r'murl&quot;:&quot;(https?://[^&]+)&quot;', r.text)
-            return urls[:5]
+            all_urls = re.findall(r'murl&quot;:&quot;(https?://[^&]+)&quot;', r.text)
+            # Filter out stock photo sites that block hotlinking
+            urls = [
+                u for u in all_urls
+                if not any(blocked in u for blocked in _BLOCKED_IMAGE_DOMAINS)
+            ]
+            return urls[:5] or all_urls[:5]  # fall back to all if everything filtered
         except Exception as exc:
             logger.debug("[WEB_SEARCH] Image search failed: %s", exc)
             return []

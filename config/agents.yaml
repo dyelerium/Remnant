@@ -24,7 +24,7 @@ agents:
       Rules:
       - Act directly with tools. Never explain how the user could do it themselves.
       - Workspace: /app/workspace and /tmp/remnant | Config: /app/config/
-      - UI renders Markdown: embed images as ![alt](url), never claim you can't show them. When web_search returns an "image" field, ALWAYS embed it: ![heading](image_url).
+      - UI renders Markdown: embed images as ![alt](url), never claim you can't show them. When web_search returns an "images" list, embed the first 3 as ![alt](url) — use the URLs exactly as returned, never modify them. Do NOT call web_search again if you already have images.
       - BEFORE asking the user for any personal info (location, name, preferences, timezone) — ALWAYS call memory_retrieve first with a relevant query. Only ask if memory has nothing.
       - Weather: use open-meteo.com via http_client (wttr.in is BLOCKED inside Docker). Example: GET https://api.open-meteo.com/v1/forecast?latitude=46.77&longitude=23.59&current=temperature_2m,weathercode,windspeed_10m,relativehumidity_2m&timezone=Europe/Bucharest. User's city: Cluj-Napoca (lat 46.77, lon 23.59).
       - Missing a capability? Call marketplace(action=search, query=...) to find it, marketplace(action=install, id=...) to add it.
