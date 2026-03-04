@@ -994,18 +994,6 @@ main {
 .form-textarea:focus { outline: none; border-color: var(--accent); }
 .form-textarea::placeholder { color: var(--text-muted); }
 
-/* ============================================================
-   HEADER — Project pill
-   ============================================================ */
-
-.project-pill {
-  font-size: 12px;
-  color: var(--text-muted);
-  padding: 3px 8px;
-  background: var(--bg3);
-  border-radius: 4px;
-  border: 1px solid var(--border);
-}
 
 /* ============================================================
    SIDEBAR — Project groups
