@@ -152,9 +152,6 @@
       REMNANT
     </div>
 
-    <!-- Active project pill -->
-    <div class="project-pill" x-text="activeProjectName"></div>
-
     <div class="header-spacer"></div>
 
     <!-- Connection / activity status -->
@@ -240,7 +237,7 @@
 
       <!-- Default (no project) chats -->
       <div class="sidebar-section">
-        <div class="sidebar-section-title">Default</div>
+        <div class="sidebar-section-title">Chats</div>
         <template x-for="chat in chatsForProject(null)" :key="chat.id">
           <div class="sidebar-item" :class="{ active: activeChatId === chat.id }"
                @click="selectChat(chat.id)" style="position:relative">
