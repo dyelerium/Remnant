@@ -378,7 +378,7 @@ class TestSchemaHint:
     def test_action_enum(self, tmp_path):
         tool = _make_tool(tmp_path)
         props = tool.schema_hint["parameters"]["properties"]
-        assert set(props["action"]["enum"]) == {"search", "install", "list"}
+        assert set(props["action"]["enum"]) == {"search", "install", "list", "analyze_url", "install_from_content"}
 
     def test_name_is_marketplace(self, tmp_path):
         tool = _make_tool(tmp_path)
