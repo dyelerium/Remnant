@@ -93,6 +93,7 @@ class LLMClient:
         max_tokens: Optional[int] = None,
         temperature: float = 0.7,
         cancel_event: Optional[asyncio.Event] = None,
+        tools: Optional[list] = None,
     ) -> AsyncIterator[str]:
         """Async streaming chat. Yields text chunks. Supports cancellation and fallback cascade."""
         override = f"{provider}/{model}" if provider and model else model
@@ -108,7 +109,8 @@ class LLMClient:
         for attempt, current_spec in enumerate(all_specs):
             try:
                 async for chunk in self._dispatch_chat_stream(
-                    current_spec, messages, max_tokens, temperature, cancel_event=cancel_event
+                    current_spec, messages, max_tokens, temperature,
+                    cancel_event=cancel_event, tools=tools,
                 ):
                     yield chunk
                 return  # Success — done
@@ -199,10 +201,10 @@ class LLMClient:
         else:
             raise ValueError(f"Unknown provider: {spec.provider}")
 
-    async def _dispatch_chat_stream(self, spec, messages, max_tokens, temperature, cancel_event=None):
+    async def _dispatch_chat_stream(self, spec, messages, max_tokens, temperature, cancel_event=None, tools=None):
         # If model is configured to not stream, fall back to a single non-streaming call
         if not spec.stream:
-            result = self._dispatch_chat(spec, messages, max_tokens, temperature)
+            result = self._dispatch_chat(spec, messages, max_tokens, temperature, tools=tools)
             yield result.get("content", "")
             return
         if spec.provider == "anthropic":
@@ -333,7 +335,8 @@ class LLMClient:
 
     # -- OpenAI / OpenRouter --
 
-    def _chat_openai_compat(self, spec, messages, max_tokens, temperature, **kwargs) -> dict:
+    def _chat_openai_compat(self, spec, messages, max_tokens, temperature, tools=None, **kwargs) -> dict:
+        import json as _json
         import openai
         client_kwargs: dict = {}
         if spec.api_key:
@@ -345,7 +348,7 @@ class LLMClient:
         client = openai.OpenAI(**client_kwargs)
         max_tok = max_tokens or 4096
 
-        response = client.chat.completions.create(
+        call_kwargs: dict = dict(
             model=spec.model,
             messages=self._convert_images_for_openai(messages),
             max_tokens=max_tok,
@@ -353,8 +356,29 @@ class LLMClient:
             top_p=spec.top_p,
             **kwargs,
         )
+        if spec.native_tools and tools:
+            call_kwargs["tools"] = tools
+
+        response = client.chat.completions.create(**call_kwargs)
+        msg = response.choices[0].message
+
+        # Convert native tool_calls to code-block text format the runtime parses
+        if spec.native_tools and msg.tool_calls:
+            parts = []
+            for tc in msg.tool_calls:
+                try:
+                    args = _json.loads(tc.function.arguments)
+                except Exception:
+                    args = {}
+                parts.append(
+                    f'```tool\n{_json.dumps({"name": tc.function.name, "args": args})}\n```'
+                )
+            content = "\n".join(parts)
+        else:
+            content = msg.content or ""
+
         return {
-            "content": response.choices[0].message.content,
+            "content": content,
             "tokens_in": response.usage.prompt_tokens,
             "tokens_out": response.usage.completion_tokens,
             "model": spec.model,

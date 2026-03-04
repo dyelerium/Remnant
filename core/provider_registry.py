@@ -40,6 +40,7 @@ class ModelSpec:
     temperature: float = 0.7
     top_p: float = 1.0
     stream: bool = True
+    native_tools: bool = False
     extra_pricing: dict = field(default_factory=dict)
     # Thinking / extended reasoning
     has_thinking: bool = False
@@ -83,6 +84,7 @@ class ProviderRegistry:
                     temperature=float(model_cfg.get("temperature", 0.7)),
                     top_p=float(model_cfg.get("top_p", 1.0)),
                     stream=bool(model_cfg.get("stream", True)),
+                    native_tools=bool(model_cfg.get("native_tools", False)),
                     extra_pricing=model_cfg.get("extra_pricing", {}),
                     has_thinking=bool(model_cfg.get("has_thinking", False)),
                     thinking_enabled=bool(model_cfg.get("thinking_enabled", True)),

@@ -133,8 +133,15 @@ class AgentRuntime:
         except Exception:
             pass
 
-        # Inject available tool schemas so the LLM knows what to call and how
-        if self._tool_registry:
+        # Inject available tool schemas so the LLM knows what to call and how.
+        # Skip for models that use native function calling — tools are passed via API.
+        _use_native_tools = False
+        try:
+            _native_spec = self.llm.registry.resolve("chat")
+            _use_native_tools = _native_spec.native_tools
+        except Exception:
+            pass
+        if self._tool_registry and not _use_native_tools:
             system_prompt = system_prompt + "\n\n" + self._build_tool_docs()
 
         if memory_context:
@@ -192,12 +199,21 @@ class AgentRuntime:
             # Buffer this LLM call
             buffered_parts: list[str] = []
             use_case = self._smart_use_case(message) if budget_mode else "chat"
+            # Pass tool schemas natively for models that support function calling
+            _tools_param = None
+            try:
+                _cur_spec = self.llm.registry.resolve(use_case, project_id)
+                if _cur_spec.native_tools and self._tool_registry:
+                    _tools_param = self._build_openai_tools()
+            except Exception:
+                pass
             try:
                 async for chunk in self.llm.chat_stream(
                     messages=messages,
                     use_case=use_case,
                     project_id=project_id,
                     cancel_event=cancel_event,
+                    tools=_tools_param,
                 ):
                     if cancel_event and cancel_event.is_set():
                         break
@@ -398,6 +414,22 @@ class AgentRuntime:
         except Exception as exc:
             logger.warning("[RUNTIME] Memory record failed: %s", exc)
             return []
+
+    def _build_openai_tools(self) -> list:
+        """Build OpenAI-format tool schemas for native function calling."""
+        tools = []
+        for name, tool in self._tool_registry.items():
+            hint = getattr(tool, "schema_hint", {})
+            params = hint.get("parameters", {"type": "object", "properties": {}})
+            tools.append({
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": hint.get("description", getattr(tool, "description", "")),
+                    "parameters": params,
+                },
+            })
+        return tools
 
     def _build_tool_docs(self) -> str:
         """Build a compact tool reference injected into the system prompt."""
