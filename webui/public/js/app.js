@@ -342,6 +342,9 @@ document.addEventListener('alpine:init', () => {
 
       // Ensure textarea renders with correct initial height
       this.autoResize();
+      // Scroll to bottom immediately and again after images load
+      this.scrollToBottom();
+      setTimeout(() => this.scrollToBottom(), 200);
 
       // Escape key closes image lightbox
       document.addEventListener('keydown', (e) => {
