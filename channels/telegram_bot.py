@@ -43,6 +43,16 @@ class TelegramBot:
             text = message.text or ""
             chat_id = str(message.chat.id)
 
+            # --- /clear command: wipe Redis session history ---
+            if text.strip().lower() == "/clear":
+                if self._redis:
+                    key = f"remnant:session:history:tg-{chat_id}"
+                    await asyncio.get_event_loop().run_in_executor(
+                        None, self._redis.r.delete, key
+                    )
+                await message.answer("✓ Chat cleared — conversation history reset.")
+                return
+
             try:
                 chunks = self._retriever.retrieve(text)
                 memory_context = self._retriever.format_for_prompt(chunks)
