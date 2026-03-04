@@ -343,6 +343,18 @@ main {
   position: relative;
 }
 
+/* Inline markdown images — constrained to bubble width, click to open */
+.msg-bubble img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  cursor: zoom-in;
+  display: block;
+  margin: 6px 0;
+  transition: opacity 0.15s;
+}
+.msg-bubble img:hover { opacity: 0.9; }
+
 /* User bubble */
 .msg-row.user .msg-bubble {
   background: var(--bg3);

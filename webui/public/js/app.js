@@ -92,10 +92,15 @@ function renderMd(text) {
 function renderMdWithCopy(text) {
   if (typeof marked === 'undefined') return `<p>${(text || '').replace(/\n/g, '<br>')}</p>`;
   const html = marked.parse(text || '');
-  return html.replace(
-    /<pre><code/g,
-    '<pre class="code-block"><button class="copy-code-btn" onclick="copyCode(this)">Copy</button><code'
-  );
+  return html
+    .replace(
+      /<pre><code/g,
+      '<pre class="code-block"><button class="copy-code-btn" onclick="copyCode(this)">Copy</button><code'
+    )
+    .replace(
+      /<img /g,
+      '<img onclick="openImageLightbox(this.src)" '
+    );
 }
 function copyCode(btn) {
   const code = btn.nextElementSibling?.textContent || '';
@@ -103,6 +108,15 @@ function copyCode(btn) {
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
   });
+}
+function openImageLightbox(src) {
+  const el = document.querySelector('[x-data]');
+  if (el && el._x_dataStack) {
+    const data = el._x_dataStack[0];
+    data.imageModalSrc = src;
+    data.imageModalOpen = true;
+    data.imageZoom = 1;
+  }
 }
 
 /* ============================================================
