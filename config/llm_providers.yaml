@@ -142,6 +142,37 @@ providers:
         use_cases:
         - chat
     name: LM Studio (local)
+  mercury:
+    api_key_env: MERCURY_API_KEY
+    base_url: https://api.inceptionlabs.ai/v1
+    models:
+      mercury-2:
+        context_window: 32000
+        cost_per_1k_input: 0.00025
+        cost_per_1k_output: 0.00075
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: false
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+        - fast
+        - default
+      mercury-coder-small:
+        context_window: 32000
+        cost_per_1k_input: 0.00025
+        cost_per_1k_output: 0.00075
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: false
+        temperature: 0.7
+        use_cases:
+        - chat
+        - fast
+    name: Mercury (Inception Labs)
   mistral:
     api_key_env: MISTRAL_API_KEY
     base_url: https://api.mistral.ai/v1
@@ -170,37 +201,6 @@ providers:
         - fast
         - compaction
     name: Mistral AI
-  mercury:
-    api_key_env: MERCURY_API_KEY
-    base_url: https://api.inceptionlabs.ai/v1
-    models:
-      mercury-2:
-        context_window: 32000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        stream: true
-        temperature: 0.7
-        use_cases:
-        - chat
-        - planning
-        - fast
-        - default
-      mercury-coder-small:
-        context_window: 32000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        stream: true
-        temperature: 0.7
-        use_cases:
-        - chat
-        - fast
-    name: Mercury (Inception Labs)
   moonshot:
     api_key_env: MOONSHOT_API_KEY
     base_url: https://api.moonshot.cn/v1
