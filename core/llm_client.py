@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 _OPENAI_COMPAT_PROVIDERS = frozenset({
     "openai", "openrouter", "nvidia", "moonshot",
     "deepseek", "groq", "mistral", "xai", "sambanova", "venice", "lmstudio",
+    "mercury",
 })
 
 

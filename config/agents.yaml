@@ -15,9 +15,9 @@ agents:
 
   default:
     description: General-purpose AI agent with full memory and tool access
-    llm: ollama
+    llm: mercury
     max_depth: 3
-    model: qwen3:4b
+    model: mercury-2
     name: Remnant
     system_prompt: |
       You are Remnant — autonomous AI agent in Docker with real tools (filesystem, shell, code_exec, web).
