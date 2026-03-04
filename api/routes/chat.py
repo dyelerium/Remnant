@@ -312,12 +312,6 @@ async def websocket_chat(ws: WebSocket) -> None:
 
             await ws.send_json({"type": "done", "session_id": session_id})
 
-            # Mirror to Telegram so web UI and Telegram stay in sync
-            try:
-                await _mirror_to_telegram(message, response_parts, ws.app.state.redis)
-            except Exception:
-                pass
-
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
         # Cancel any in-flight session for this connection
