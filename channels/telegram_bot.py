@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -38,8 +39,8 @@ class TelegramBot:
             )
             if val:
                 return val.decode() if isinstance(val, bytes) else val
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug("[TELEGRAM] Failed to read active project: %s", _e)
         return None
 
     async def _set_active_project(self, chat_id: str, project_id: Optional[str]) -> None:
@@ -86,14 +87,14 @@ class TelegramBot:
                 await message.answer("✓ Chat cleared — conversation history reset.")
                 return
 
-            import re as _re2
-
             # --- list projects ---
-            if _re2.search(r"\b(list|show|what|my)\b.{0,20}\bprojects?\b", text.lower()):
+            if re.search(r"\b(list|show|what|my)\b.{0,20}\bprojects?\b", text.lower()):
                 try:
                     projects = []
                     if self._project_manager:
-                        projects = self._project_manager.list_all()
+                        projects = await asyncio.get_event_loop().run_in_executor(
+                            None, self._project_manager.list_all
+                        )
                     if not projects:
                         await message.answer("No projects found. Create one in the Web UI first.")
                     else:
@@ -110,7 +111,7 @@ class TelegramBot:
                 return
 
             # --- open project <name> ---
-            _open_m = _re2.search(
+            _open_m = re.search(
                 r"\b(?:open|switch\s+to|use|start|enter)\s+project\s+(.+)",
                 text.lower()
             )
@@ -120,7 +121,10 @@ class TelegramBot:
                     matched_id = None
                     matched_name = None
                     if self._project_manager:
-                        for p in self._project_manager.list_all():
+                        all_projects = await asyncio.get_event_loop().run_in_executor(
+                            None, self._project_manager.list_all
+                        )
+                        for p in all_projects:
                             pname = (p.get("name") or p.get("project_id", "")).lower()
                             pid = p.get("project_id", "")
                             if target in pname or pname in target or target == pid.lower():
@@ -130,8 +134,8 @@ class TelegramBot:
                     if matched_id:
                         await self._set_active_project(chat_id, matched_id)
                         await message.answer(
-                            f"✅ Switched to project *{matched_name}*\n\n"
-                            f"Responses will be prefixed with `[{matched_name}]`. "
+                            f"✅ Switched to project *{matched_name}*.\n\n"
+                            f"Project context is now active for this chat. "
                             f'Say _"switch to telegram chat"_ to return to normal mode.',
                             parse_mode="Markdown"
                         )
@@ -146,7 +150,7 @@ class TelegramBot:
                 return
 
             # --- close / exit project ---
-            if _re2.search(
+            if re.search(
                 r"\b(?:switch\s+to\s+telegram|exit\s+project|close\s+project|"
                 r"back\s+to\s+telegram|leave\s+project|no\s+project)\b",
                 text.lower()
@@ -175,10 +179,9 @@ class TelegramBot:
                 response_parts.append(chunk)
 
             # Strip internal runtime markers ([GEN], [EXE], [PLAN], etc.)
-            import re as _re
             response_text = "".join(response_parts)
-            response_text = _re.sub(r"^\[GEN\] ", "", response_text)
-            response_text = _re.sub(r"\[EXE\] \d+ tool\(s\) executed\n?", "", response_text)
+            response_text = re.sub(r"^\[GEN\] ", "", response_text)
+            response_text = re.sub(r"\[EXE\] \d+ tool\(s\) executed\n?", "", response_text)
             response_text = response_text.strip()
 
             if response_text:
