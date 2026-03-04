@@ -223,6 +223,9 @@ document.addEventListener('alpine:init', () => {
     agentsEdits: {},    // local edits buffer keyed by agent name
     allTools: ['filesystem', 'web_search', 'code_exec', 'http_client', 'memory_retrieve', 'memory_record', 'config', 'shell', 'n8n'],
 
+    /* --- Archive view --- */
+    showArchived: false,
+
     /* --- Budget mode (persists across send; toggled locally or saved globally) --- */
     budgetModeEnabled: false,
 
@@ -282,6 +285,10 @@ document.addEventListener('alpine:init', () => {
         id: p.project_id,
         name: p.name || p.project_id,
       }));
+    },
+
+    get archivedChats() {
+      return this.chats.filter(c => c.archivedMessages && c.archivedMessages.length > 0);
     },
 
     get activeProjectName() {

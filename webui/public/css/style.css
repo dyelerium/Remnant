@@ -229,6 +229,23 @@ aside {
   padding: 12px;
   border-top: 1px solid var(--border);
 }
+.btn-archive {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+  transition: opacity var(--transition), background var(--transition);
+  flex-shrink: 0;
+}
+.btn-archive:hover { opacity: 0.85; }
+.btn-archive.active { opacity: 1; background: rgba(124,58,237,0.15); border-color: rgba(124,58,237,0.4); }
 
 .btn-new {
   width: 100%;

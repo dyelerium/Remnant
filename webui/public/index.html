@@ -250,9 +250,27 @@
       </div>
     </div>
 
+    <!-- Archived chats section (shown when toggled) -->
+    <div x-show="showArchived && archivedChats.length > 0" style="display:none">
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-title" style="color:var(--text-muted)">Archived</div>
+        <template x-for="chat in archivedChats" :key="'arch-' + chat.id">
+          <div class="sidebar-item" :class="{ active: activeChatId === chat.id }"
+               @click="selectChat(chat.id)" style="position:relative;opacity:0.7">
+            <span class="item-icon">🗃️</span>
+            <span class="item-label" x-text="chat.title"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <!-- Sidebar footer -->
-    <div class="sidebar-footer">
-      <button class="btn-new" @click="newChat()">✚ New chat</button>
+    <div class="sidebar-footer" style="display:flex;gap:6px">
+      <button class="btn-new" style="flex:1" @click="newChat()">✚ New chat</button>
+      <button class="btn-archive" :class="{ active: showArchived }"
+              @click="showArchived = !showArchived"
+              :title="showArchived ? 'Hide archived' : 'Show archived chats'">🗃️</button>
     </div>
   </aside>
 
