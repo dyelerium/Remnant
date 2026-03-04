@@ -172,6 +172,9 @@ class TelegramBot:
             # Load active project for this chat
             active_project_id = await self._get_active_project(chat_id)
             project_display_name = ""
+            # If project_manager is unavailable, treat as no active project
+            if active_project_id and not self._project_manager:
+                active_project_id = None
             if active_project_id and self._project_manager:
                 proj = await asyncio.get_event_loop().run_in_executor(
                     None, self._project_manager.get, active_project_id
@@ -199,14 +202,15 @@ class TelegramBot:
             response_text = re.sub(r"\[EXE\] \d+ tool\(s\) executed\n?", "", response_text)
             response_text = response_text.strip()
 
-            # Prefix with project name when in project mode
+            # Prefix with project name in Telegram replies only
+            telegram_display = response_text
             if active_project_id and project_display_name and response_text:
-                response_text = f"[{project_display_name}]\n\n{response_text}"
+                telegram_display = f"[{project_display_name}]\n\n{response_text}"
 
-            if response_text:
+            if telegram_display:
                 # Telegram max message length is 4096 chars
-                for i in range(0, len(response_text), 4000):
-                    await message.answer(response_text[i:i+4000])
+                for i in range(0, len(telegram_display), 4000):
+                    await message.answer(telegram_display[i:i+4000])
 
             # Push conversation to open web UI tabs
             username = message.from_user.username or message.from_user.first_name or chat_id

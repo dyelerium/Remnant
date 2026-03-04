@@ -578,12 +578,14 @@ document.addEventListener('alpine:init', () => {
         }
       }
 
+      const senderIdx = existing === -1 ? 0 : existing;
+
       // If project mode active: also mirror into the project chat in the sidebar
       if (msg.project_id) {
         const projSessionId = `tg-proj-${msg.project_id}`;
         const projIdx = this.chats.findIndex(c => c.sessionId === projSessionId);
         if (projIdx === -1) {
-          this.chats.splice(1, 0, {
+          this.chats.splice(senderIdx + 1, 0, {
             id: uid(),
             title: `📱 ${msg.project_id}`,
             projectId: msg.project_id,
