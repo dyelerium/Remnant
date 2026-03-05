@@ -1338,12 +1338,12 @@ providers:
         context_window: 32000
         cost_per_1k_input: 0.00025
         cost_per_1k_output: 0.00075
-        has_vision: false
+        has_vision: true
         history_fraction: 0.7
         max_completion_tokens: 4096
-        native_tools: true
         stream: false
-        temperature: 0.7
+        temperature: 0.2
+        top_p: 1.0
         use_cases:
         - chat
         - planning
@@ -1502,7 +1502,7 @@ providers:
         history_fraction: 0.7
         max_completion_tokens: 4096
         stream: true
-        temperature: 0.7
+        temperature: 0.2
         top_p: 1.0
         use_cases:
         - chat
@@ -1526,7 +1526,7 @@ providers:
         history_fraction: 0.7
         max_completion_tokens: 4096
         stream: true
-        temperature: 0.7
+        temperature: 0.2
         top_p: 1.0
         use_cases:
         - chat

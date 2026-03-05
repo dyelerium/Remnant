@@ -2,8 +2,8 @@ agents:
   coder:
     description: Specialist agent for code generation and execution
     llm: ollama
-    max_depth: 1
-    model: qwen3:4b
+    max_depth: 2
+    model: glm-4.7:cloud
     name: Coder
     system_prompt: 'Coding specialist. Write clean, working code. Test when possible.
       Prefer Python.
@@ -19,7 +19,7 @@ agents:
     description: General-purpose AI agent with full memory and tool access
     llm: ollama
     max_depth: 3
-    model: qwen3.5:4b
+    model: kimi-k2.5:cloud
     name: Remnant
     system_prompt: 'You are Remnant — autonomous AI agent in Docker with real tools
       (filesystem, shell, code_exec, web).
@@ -87,9 +87,9 @@ agents:
     - reminder
   researcher:
     description: Specialist agent for web research and information gathering
-    llm: ollama
-    max_depth: 1
-    model: qwen3:4b
+    llm: mercury
+    max_depth: 2
+    model: mercury-2
     name: Researcher
     system_prompt: 'Research specialist. Use web search to find accurate, up-to-date
       info.
