@@ -199,11 +199,13 @@ async def download_backup(request: Request) -> StreamingResponse:
 @router.post("/admin/restore")
 async def restore_backup(file: UploadFile = File(...)) -> dict:
     content = await file.read()
+    root = str(_APP_ROOT.resolve())
     with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tar:
         for member in tar.getmembers():
-            if member.name.startswith("/") or ".." in member.name:
-                raise HTTPException(status_code=400, detail="Invalid archive path")
-        tar.extractall(str(_APP_ROOT))
+            dest = os.path.realpath(os.path.join(root, member.name))
+            if not dest.startswith(root + os.sep) and dest != root:
+                raise HTTPException(status_code=400, detail=f"Invalid archive path: {member.name}")
+        tar.extractall(root)
     return {"status": "restored", "filename": file.filename}
 
 
@@ -286,11 +288,13 @@ async def restore_snapshot(name: str, request: Request) -> dict:
         raise HTTPException(status_code=404, detail=f"Snapshot {name!r} not found")
 
     config_dir = Path("/app/config") if Path("/app/config").exists() else Path("config")
+    config_root = str(config_dir.resolve())
     with tarfile.open(snap_path, "r:gz") as tar:
         for member in tar.getmembers():
-            if member.name.startswith("/") or ".." in member.name:
-                raise HTTPException(status_code=400, detail="Invalid archive path")
-        tar.extractall(str(config_dir))
+            dest = os.path.realpath(os.path.join(config_root, member.name))
+            if not dest.startswith(config_root + os.sep) and dest != config_root:
+                raise HTTPException(status_code=400, detail=f"Invalid archive path: {member.name}")
+        tar.extractall(config_root)
 
     # Trigger container restart via Docker socket (best-effort)
     try:

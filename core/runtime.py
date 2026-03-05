@@ -130,8 +130,8 @@ class AgentRuntime:
         try:
             _spec = self.llm.registry.resolve("chat")
             system_prompt += f"\n[model:{_spec.provider}/{_spec.model}]"
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[RUNTIME] Could not resolve chat model for identity tag: %s", exc)
 
         # Inject available tool schemas so the LLM knows what to call and how.
         # Skip for models that use native function calling — tools are passed via API.
@@ -139,8 +139,8 @@ class AgentRuntime:
         try:
             _native_spec = self.llm.registry.resolve("chat")
             _use_native_tools = _native_spec.native_tools
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("[RUNTIME] Could not resolve native_tools spec: %s", exc)
         if self._tool_registry and not _use_native_tools:
             system_prompt = system_prompt + "\n\n" + self._build_tool_docs()
 
@@ -205,8 +205,8 @@ class AgentRuntime:
                 _cur_spec = self.llm.registry.resolve(use_case, project_id)
                 if _cur_spec.native_tools and self._tool_registry:
                     _tools_param = self._build_openai_tools()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("[RUNTIME] Could not resolve spec for native tools: %s", exc)
             try:
                 async for chunk in self.llm.chat_stream(
                     messages=messages,

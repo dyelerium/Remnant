@@ -1,5 +1,5 @@
 defaults:
-  chat: mercury/mercury-2
+  chat: ollama/qwen3.5:4b
   compaction: ollama/qwen3:4b
   curator: ollama/qwen3:4b
   embedding: sentence-transformers/all-MiniLM-L6-v2
@@ -284,46 +284,6 @@ providers:
     api_key_env: null
     base_url: null
     models:
-      deepcoder:1.5b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      deepcoder:1.5b-preview-fp16:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      deepseek-r1:7b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      deepseek-r1:8b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
       embeddinggemma:latest:
         context_window: 128000
         cost_per_1k_input: 0.0
@@ -347,36 +307,6 @@ providers:
         use_cases:
         - chat
       glm-4.7:cloud:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      glm4:latest:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      granite3.2-vision:latest:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      granite3.3:2b:
         context_window: 128000
         cost_per_1k_input: 0.0
         cost_per_1k_output: 0.0
@@ -410,28 +340,6 @@ providers:
         top_p: 1.0
         use_cases:
         - chat
-      llama3.1:8b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-        - compaction
-        - fast
-      llama3.2:3b-instruct-q8_0:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
       llama3.2:latest:
         context_window: 128000
         cost_per_1k_input: 0.0
@@ -452,16 +360,6 @@ providers:
         temperature: 0.7
         use_cases:
         - chat
-      nomic-embed-text:
-        context_window: 8192
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 0
-        temperature: 0.0
-        use_cases:
-        - embedding
       nomic-embed-text-v2-moe:latest:
         context_window: 128000
         cost_per_1k_input: 0.0
@@ -474,56 +372,6 @@ providers:
         top_p: 1.0
         use_cases:
         - chat
-      nomic-embed-text:latest:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      phi4-mini:3.8b-q8_0:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      qwen2.5-coder:7b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      qwen2.5vl:3b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      qwen3-vl:4b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
       qwen3.5:4b:
         context_window: 128000
         cost_per_1k_input: 0.0
@@ -532,7 +380,7 @@ providers:
         history_fraction: 0.7
         max_completion_tokens: 4096
         stream: true
-        temperature: 0.7
+        temperature: 0.3
         top_p: 1.0
         use_cases:
         - chat

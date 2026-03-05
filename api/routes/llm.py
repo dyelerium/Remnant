@@ -173,7 +173,7 @@ async def fetch_remote_models(provider: str, request: Request) -> dict:
         except httpx.HTTPError:
             # Fall back to a curated static list if the models endpoint isn't available
             static = [
-                {"id": "moonshotai/kimi-k2.5", "name": "Kimi K2.5 (Moonshot)", "context_length": 131072,
+                {"id": "nvidia/llama-3.1-nemotron-70b-instruct", "name": "Nemotron 70B Instruct", "context_length": 131072,
                  "cost_per_1k_input": 0.0, "cost_per_1k_output": 0.0, "has_vision": False, "max_completion_tokens": 16384},
                 {"id": "meta/llama-3.3-70b-instruct", "name": "Llama 3.3 70B Instruct", "context_length": 131072,
                  "cost_per_1k_input": 0.0, "cost_per_1k_output": 0.0, "has_vision": False, "max_completion_tokens": 8192},

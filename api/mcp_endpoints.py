@@ -310,12 +310,15 @@ async def _dispatch_tool(rid, tool_name: str, args: dict, request: Request) -> d
     elif tool_name == "skill_execute":
         skill_registry = request.app.state.skill_registry
         tool_registry = request.app.state.tool_registry
-        result = await skill_registry.invoke(
-            args["skill_name"],
-            args.get("args", {}),
-            tool_registry,
-        )
-        return mcp_result(rid, {"content": [{"type": "text", "text": json.dumps(result)}]})
+        try:
+            result = await skill_registry.invoke(
+                args["skill_name"],
+                args.get("args", {}),
+                tool_registry,
+            )
+            return mcp_result(rid, {"content": [{"type": "text", "text": json.dumps(result)}]})
+        except Exception as exc:
+            return mcp_error(rid, -32000, f"skill_execute failed: {exc}")
 
     else:
         return mcp_error(rid, -32601, f"Unknown tool: {tool_name}")

@@ -1,6 +1,7 @@
 """Config loader — merge YAML files + env var overrides into typed Pydantic settings."""
 from __future__ import annotations
 
+import logging
 import os
 import re
 from functools import lru_cache
@@ -98,8 +99,8 @@ class ConfigLoader:
                 merged.setdefault("secrets", {})["master_key"] = settings.master_key
             merged["env"] = settings.env
             merged["log_level"] = settings.log_level
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Failed to load RemnantSettings from env: %s", exc)
 
         self._merged = merged
         return merged

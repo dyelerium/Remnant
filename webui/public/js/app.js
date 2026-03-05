@@ -1297,11 +1297,15 @@ document.addEventListener('alpine:init', () => {
       this.waQrError = null;
       try {
         const resp = await fetch('/api/whatsapp/qr');
-        const data = await resp.json();
         if (!resp.ok) {
-          this.waQrError = data.detail || 'Failed to get QR code';
+          let detail = 'Failed to get QR code';
+          try { detail = (await resp.json()).detail || detail; } catch (_) {}
+          this.waQrError = detail;
           this.waQrData = null;
-        } else if (data.status === 'authenticated') {
+          return;
+        }
+        const data = await resp.json();
+        if (data.status === 'authenticated') {
           // Already authenticated — refresh status
           this.waQrData = null;
           await this.waCheckStatus();

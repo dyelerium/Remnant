@@ -1,11 +1,14 @@
 """GET/POST /memory — search + record (debug + programmatic)."""
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel
 
 router = APIRouter(tags=["memory"])
@@ -43,6 +46,8 @@ async def search_memory(req: SearchRequest, request: Request) -> dict:
 
 @router.post("/memory/record")
 async def record_memory(req: RecordRequest, request: Request) -> dict:
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
     recorder = request.app.state.recorder
     try:
         chunk_ids = recorder.record(
@@ -79,7 +84,8 @@ async def memory_stats(request: Request) -> dict:
             if pid:
                 project_ids.add(pid.decode() if isinstance(pid, bytes) else pid)
         total_projects = len(project_ids)
-    except Exception:
+    except Exception as exc:
+        logger.warning("[MEMORY] Failed to count chunks/projects from Redis: %s", exc)
         total_chunks = 0
         total_projects = 0
 
