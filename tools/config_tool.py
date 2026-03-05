@@ -16,8 +16,11 @@ logger = logging.getLogger(__name__)
 class ConfigTool(BaseTool):
     name = "config"
     description = (
-        "Manage LLM model configuration. "
-        "Actions: list_models, get_current, set_model, list_providers, reload_config."
+        "Change the active LLM model or inspect configuration. "
+        "Use set_model to switch the default chat/planning model (e.g. 'moonshot/kimi-k2.5'). "
+        "Use list_models to see all registered models. "
+        "Use fetch_api_models to discover live models from a connected provider API. "
+        "Actions: list_models, get_current, set_model, list_providers, fetch_api_models, reload_config."
     )
     safety_flags: list[str] = []
 
@@ -40,9 +43,14 @@ class ConfigTool(BaseTool):
                             "get_current",
                             "set_model",
                             "list_providers",
+                            "fetch_api_models",
                             "reload_config",
                         ],
-                        "description": "Action to perform",
+                        "description": (
+                            "Action to perform. "
+                            "set_model: switch active model (requires model_key + use_case). "
+                            "fetch_api_models: fetch live model list from a provider API (requires provider name)."
+                        ),
                     },
                     "use_case": {
                         "type": "string",
@@ -65,6 +73,13 @@ class ConfigTool(BaseTool):
                             "Default false (session-only)."
                         ),
                     },
+                    "provider": {
+                        "type": "string",
+                        "description": (
+                            "Provider name for fetch_api_models: "
+                            "ollama, openrouter, anthropic, openai, nvidia, moonshot."
+                        ),
+                    },
                 },
                 "required": ["action"],
             },
@@ -84,6 +99,8 @@ class ConfigTool(BaseTool):
             )
         elif action == "list_providers":
             return await self._list_providers()
+        elif action == "fetch_api_models":
+            return await self._fetch_api_models(args.get("provider", ""))
         elif action == "reload_config":
             return await self._reload_config()
         else:
@@ -220,6 +237,87 @@ class ConfigTool(BaseTool):
                 }
             )
         return ToolResult(tool_name=self.name, success=True, output=result)
+
+    async def _fetch_api_models(self, provider: str) -> ToolResult:
+        """Fetch live model list from a provider's API and show which are already registered."""
+        if not provider:
+            return ToolResult(
+                tool_name=self.name, success=False,
+                error="provider is required. Options: ollama, openrouter, anthropic, openai, nvidia, moonshot",
+            )
+        import httpx
+        provider = provider.lower()
+        try:
+            models: list[dict] = []
+
+            if provider == "ollama":
+                base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+                async with httpx.AsyncClient(timeout=5) as client:
+                    resp = await client.get(f"{base_url}/api/tags")
+                    resp.raise_for_status()
+                    for m in resp.json().get("models", []):
+                        name = m.get("name", "")
+                        models.append({"id": name, "key": f"ollama/{name}"})
+
+            elif provider == "moonshot":
+                api_key = os.environ.get("MOONSHOT_API_KEY", "")
+                if not api_key:
+                    return ToolResult(tool_name=self.name, success=False, error="MOONSHOT_API_KEY not set")
+                async with httpx.AsyncClient(timeout=10) as client:
+                    resp = await client.get(
+                        "https://api.moonshot.cn/v1/models",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                    )
+                    resp.raise_for_status()
+                    for m in resp.json().get("data", []):
+                        mid = m.get("id", "")
+                        models.append({"id": mid, "key": f"moonshot/{mid}"})
+
+            elif provider == "openrouter":
+                api_key = os.environ.get("OPENROUTER_API_KEY", "")
+                if not api_key:
+                    return ToolResult(tool_name=self.name, success=False, error="OPENROUTER_API_KEY not set")
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.get(
+                        "https://openrouter.ai/api/v1/models",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                    )
+                    resp.raise_for_status()
+                    for m in resp.json().get("data", [])[:50]:  # top 50
+                        mid = m.get("id", "")
+                        models.append({"id": mid, "key": f"openrouter/{mid}", "name": m.get("name", mid)})
+
+            elif provider == "anthropic":
+                models = [
+                    {"id": "claude-opus-4-6", "key": "anthropic/claude-opus-4-6"},
+                    {"id": "claude-sonnet-4-6", "key": "anthropic/claude-sonnet-4-6"},
+                    {"id": "claude-haiku-4-5-20251001", "key": "anthropic/claude-haiku-4-5-20251001"},
+                ]
+
+            elif provider in ("nvidia", "openai"):
+                return ToolResult(
+                    tool_name=self.name, success=True,
+                    output={"note": f"Use /api/llm/providers/remote/{provider} endpoint for live list"},
+                )
+            else:
+                return ToolResult(
+                    tool_name=self.name, success=False,
+                    error=f"Unknown provider: {provider!r}. Options: ollama, openrouter, anthropic, openai, nvidia, moonshot",
+                )
+
+            # Annotate which models are already registered
+            registered = {f"{m.provider}/{m.model}" for m in self._registry.list_models()}
+            for m in models:
+                m["registered"] = m["key"] in registered
+
+            return ToolResult(tool_name=self.name, success=True, output={
+                "provider": provider,
+                "models": models,
+                "count": len(models),
+                "tip": "Use set_model action with the 'key' value to switch to a model",
+            })
+        except Exception as exc:
+            return ToolResult(tool_name=self.name, success=False, error=f"fetch_api_models failed: {exc}")
 
     async def _reload_config(self) -> ToolResult:
         yaml_path = self._config_dir / "llm_providers.yaml"

@@ -1,10 +1,10 @@
 defaults:
-  chat: ollama/qwen3.5:4b
+  chat: moonshot/kimi-k2.5
   compaction: ollama/qwen3:4b
   curator: ollama/qwen3:4b
   embedding: sentence-transformers/all-MiniLM-L6-v2
   fast: ollama/qwen3:4b
-  planning: ollama/qwen3:4b
+  planning: moonshot/kimi-k2.5
 fallback_chain:
 - openrouter/stepfun/step-3.5-flash:free
 - anthropic/claude-haiku-4-5-20251001
