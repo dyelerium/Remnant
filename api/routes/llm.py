@@ -263,6 +263,49 @@ async def fetch_remote_models(provider: str, request: Request) -> dict:
 
 
 # -----------------------------------------------------------------------
+# Model delete
+# -----------------------------------------------------------------------
+
+class DeleteModelRequest(BaseModel):
+    provider: str
+    model: str
+
+
+@router.delete("/llm/providers/model")
+async def delete_model(body: DeleteModelRequest, request: Request) -> dict:
+    """Remove a model from llm_providers.yaml and reload the registry."""
+    registry = request.app.state.registry
+    config_path = Path("/app/config/llm_providers.yaml")
+    if not config_path.exists():
+        config_path = Path("config/llm_providers.yaml")
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+
+        models = config.get("providers", {}).get(body.provider, {}).get("models", {})
+        if body.model not in models:
+            raise HTTPException(status_code=404, detail=f"Model {body.provider}/{body.model} not found")
+
+        del models[body.model]
+
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+
+        registry.reload_from_yaml({
+            "providers": config.get("providers", {}),
+            "defaults": config.get("defaults", {}),
+            "fallback_chain": config.get("fallback_chain", registry._fallback_chain),
+        })
+
+        return {"status": "deleted", "key": f"{body.provider}/{body.model}"}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# -----------------------------------------------------------------------
 # Per-model config save
 # -----------------------------------------------------------------------
 

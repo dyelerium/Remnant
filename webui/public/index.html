@@ -21,10 +21,10 @@
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
   <!-- App styles -->
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/css/style.css?v=2" />
 
   <!-- App logic (must come before alpine:init fires) -->
-  <script src="/js/app.js"></script>
+  <script src="/js/app.js?v=2"></script>
 </head>
 
 <body x-data="remnantApp" x-init="init()">
@@ -647,6 +647,15 @@
             <button class="btn-primary" style="font-size:11px;padding:3px 10px;margin-left:auto"
                     @click="mergeRemoteModels()">Merge &amp; Save</button>
             <button class="btn-ghost" style="font-size:11px" @click="remoteModelDiff = []">Dismiss</button>
+          </div>
+
+          <!-- Removed models banner (Ollama sync) -->
+          <div x-show="removedModelDiff.length > 0" style="display:none"
+               style="background:var(--bg3);border:1px solid #ef4444;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;display:flex;align-items:center;gap:10px">
+            <span style="color:#ef4444" x-text="removedModelDiff.length + ' model(s) no longer in Ollama'"></span>
+            <button class="btn-primary" style="font-size:11px;padding:3px 10px;margin-left:auto;background:#ef4444;border-color:#ef4444"
+                    @click="removeDeletedModels()">Remove from Remnant</button>
+            <button class="btn-ghost" style="font-size:11px" @click="removedModelDiff = []">Dismiss</button>
           </div>
 
           <!-- Model table for active provider tab -->

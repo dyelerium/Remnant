@@ -191,7 +191,8 @@ document.addEventListener('alpine:init', () => {
     modelConfigPanel: null,   // key of model whose config panel is open
     modelConfigForm: {},      // { [model_key]: { field: value, ... } }
     modelRefreshing: false,
-    remoteModelDiff: [],      // new/updated models from remote fetch
+    remoteModelDiff: [],      // new models from remote fetch
+    removedModelDiff: [],     // models removed from Ollama (not in live list)
     costBreakdown: [],
 
     /* --- WhatsApp QR --- */
@@ -767,12 +768,17 @@ document.addEventListener('alpine:init', () => {
        CHAT MANAGEMENT
        ================================================================ */
     clearChat() {
-      const chat = this.activeChat;
-      if (!chat || chat.messages.length === 0) return;
-      // Archive current messages, start fresh (Redis history untouched)
-      chat.archivedMessages = [...(chat.archivedMessages || []), ...chat.messages];
-      chat.messages = [];
-      chat.clearedAt = new Date().toISOString();
+      const idx = this.chats.findIndex(c => c.id === this.activeChatId);
+      if (idx === -1) return;
+      const chat = this.chats[idx];
+      if (!chat.messages.length) return;
+      // Replace array item so Alpine reactive proxy detects the change
+      this.chats[idx] = {
+        ...chat,
+        archivedMessages: [...(chat.archivedMessages || []), ...chat.messages],
+        messages: [],
+        clearedAt: new Date().toISOString(),
+      };
     },
 
     newChat() {
@@ -1134,6 +1140,7 @@ document.addEventListener('alpine:init', () => {
     async refreshProviderModels() {
       this.modelRefreshing = true;
       this.remoteModelDiff = [];
+      this.removedModelDiff = [];
       try {
         const resp = await fetch(`/api/llm/providers/remote/${this.modelProviderTab}`);
         if (!resp.ok) {
@@ -1143,8 +1150,14 @@ document.addEventListener('alpine:init', () => {
         }
         const data = await resp.json();
         const remote = data.models || [];
+        const remoteIds = new Set(remote.map(rm => rm.id));
         const existingKeys = new Set(this.availableModels.map(m => m.model));
         this.remoteModelDiff = remote.filter(rm => !existingKeys.has(rm.id));
+        // For Ollama: also detect models removed from the live instance
+        if (this.modelProviderTab === 'ollama') {
+          this.removedModelDiff = this.availableModels
+            .filter(m => m.provider === 'ollama' && !remoteIds.has(m.model));
+        }
       } catch (e) {
         alert('Refresh error: ' + e.message);
       } finally {
@@ -1176,6 +1189,20 @@ document.addEventListener('alpine:init', () => {
         } catch (_) {}
       }
       this.remoteModelDiff = [];
+      await this.loadModels();
+    },
+
+    async removeDeletedModels() {
+      for (const m of this.removedModelDiff) {
+        try {
+          await fetch('/api/llm/providers/model', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: m.provider, model: m.model }),
+          });
+        } catch (_) {}
+      }
+      this.removedModelDiff = [];
       await this.loadModels();
     },
 
