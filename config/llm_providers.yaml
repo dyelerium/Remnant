@@ -141,130 +141,7 @@ providers:
         temperature: 0.7
         use_cases:
         - chat
-    name: LM Studio (local)
-  mercury:
-    api_key_env: MERCURY_API_KEY
-    base_url: https://api.inceptionlabs.ai/v1
-    models:
-      mercury-2:
-        context_window: 32000
-        cost_per_1k_input: 0.00025
-        cost_per_1k_output: 0.00075
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        native_tools: true
-        stream: false
-        temperature: 0.7
-        use_cases:
-        - chat
-        - planning
-        - fast
-        - default
-      mercury-coder-small:
-        context_window: 32000
-        cost_per_1k_input: 0.00025
-        cost_per_1k_output: 0.00075
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        stream: false
-        temperature: 0.7
-        use_cases:
-        - chat
-        - fast
-    name: Mercury (Inception Labs)
-  mistral:
-    api_key_env: MISTRAL_API_KEY
-    base_url: https://api.mistral.ai/v1
-    models:
-      mistral-large-latest:
-        context_window: 128000
-        cost_per_1k_input: 0.002
-        cost_per_1k_output: 0.006
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 8192
-        temperature: 0.7
-        use_cases:
-        - chat
-        - planning
-      mistral-small-latest:
-        context_window: 128000
-        cost_per_1k_input: 0.0001
-        cost_per_1k_output: 0.0003
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 8192
-        temperature: 0.7
-        use_cases:
-        - chat
-        - fast
-        - compaction
-    name: Mistral AI
-  moonshot:
-    api_key_env: MOONSHOT_API_KEY
-    base_url: https://api.moonshot.cn/v1
-    models:
-      kimi-k1.5:
-        context_window: 128000
-        cost_per_1k_input: 0.0003
-        cost_per_1k_output: 0.0009
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 8192
-        temperature: 0.7
-        use_cases:
-        - chat
-        - compaction
-        - fast
-      kimi-k2.5:
-        context_window: 128000
-        cost_per_1k_input: 0.0005
-        cost_per_1k_output: 0.0015
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 8192
-        temperature: 0.7
-        use_cases:
-        - chat
-        - planning
-        - curator
-        - compaction
-        - default
-      kimi-latest:
-        context_window: 128000
-        cost_per_1k_input: 0.0005
-        cost_per_1k_output: 0.0015
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 8192
-        temperature: 0.7
-        use_cases:
-        - chat
-        - planning
-        - curator
-        - compaction
-        - default
-    name: Moonshot AI
-  nvidia:
-    api_key_env: NVIDIA_API_KEY
-    base_url: https://integrate.api.nvidia.com/v1
-    models:
-      meta/llama-3.3-70b-instruct:
-        context_window: 131072
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 8192
-        stream: true
-        temperature: 0.7
-        top_p: 1.0
-        use_cases:
-        - chat
-        - fast
-      moonshotai/kimi-k2.5:
+      microsoft/phi-3-mini-128k-instruct:
         context_window: 131072
         cost_per_1k_input: 0.0
         cost_per_1k_output: 0.0
@@ -272,341 +149,1677 @@ providers:
         history_fraction: 0.7
         max_completion_tokens: 16384
         stream: true
-        temperature: 0.4
-        top_p: 1.0
-        use_cases:
-        - chat
-        - planning
-        - curator
-        - compaction
-    name: NVIDIA NIM
-  ollama:
-    api_key_env: null
-    base_url: null
-    models:
-      embeddinggemma:latest:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      gemma3:4b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        stream: true
         temperature: 0.7
         top_p: 1.0
         use_cases:
         - chat
-      glm-4.7:cloud:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      granite4:3b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        stream: true
-        temperature: 0.7
-        top_p: 1.0
-        use_cases:
-        - chat
-      kimi-k2.5:cloud:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: true
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        stream: true
-        temperature: 0.3
-        top_p: 1.0
-        use_cases:
-        - chat
-      llama3.2:latest:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      ministral-3:3b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      nomic-embed-text-v2-moe:latest:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        stream: true
-        temperature: 0.7
-        top_p: 1.0
-        use_cases:
-        - chat
-      qwen3.5:4b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        stream: true
-        temperature: 0.3
-        top_p: 1.0
-        use_cases:
-        - chat
-      qwen3:4b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        stream: true
-        temperature: 0.4
-        top_p: 1.0
-        use_cases:
-        - chat
-        - curator
-        - compaction
-        - fast
-        - planning
-      translategemma:4b:
-        context_window: 128000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        stream: true
-        temperature: 0.7
-        top_p: 1.0
-        use_cases:
-        - chat
-    name: Ollama (local)
-  openai:
-    api_key_env: OPENAI_API_KEY
-    base_url: null
-    models:
-      gpt-4o:
-        context_window: 128000
-        cost_per_1k_input: 0.005
-        cost_per_1k_output: 0.015
-        has_vision: true
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-        - planning
-      gpt-4o-mini:
-        context_window: 128000
-        cost_per_1k_input: 0.00015
-        cost_per_1k_output: 0.0006
-        has_vision: true
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-        - compaction
-        - fast
-      text-embedding-3-small:
-        context_window: 8192
-        cost_per_1k_input: 2.0e-05
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 0
-        temperature: 0.0
-        use_cases:
-        - embedding
-    name: OpenAI
-  openrouter:
-    api_key_env: OPENROUTER_API_KEY
-    base_url: https://openrouter.ai/api/v1
-    extra_headers:
-      HTTP-Referer: http://localhost:8000
-      X-Title: Remnant
-    models:
-      google/gemini-3.1-pro-preview:
-        context_window: 1048576
-        cost_per_1k_input: 0.002
-        cost_per_1k_output: 0.008
-        has_vision: true
-        history_fraction: 0.7
-        max_completion_tokens: 8192
-        temperature: 0.7
-        use_cases:
-        - chat
-      meta-llama/llama-3.1-8b-instruct:
-        context_window: 128000
-        cost_per_1k_input: 5.5e-05
-        cost_per_1k_output: 5.5e-05
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-        - fast
-      mistralai/mixtral-8x7b-instruct:
-        context_window: 32000
-        cost_per_1k_input: 0.00024
-        cost_per_1k_output: 0.00024
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-        - compaction
-      qwen/qwen3-next-80b-a3b-instruct:free:
-        context_window: 32000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-        - planning
-        - curator
-        - compaction
-        - default
-      stepfun/step-3.5-flash:free:
-        context_window: 32000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-        - planning
-        - curator
-        - compaction
-        - fast
-        - default
-      upstage/solar-pro-3:free:
-        context_window: 32000
-        cost_per_1k_input: 0.0
-        cost_per_1k_output: 0.0
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-        - planning
-    name: OpenRouter
-  sambanova:
-    api_key_env: SAMBANOVA_API_KEY
-    base_url: https://api.sambanova.ai/v1
-    models:
-      DeepSeek-R1-0528:
-        context_window: 128000
-        cost_per_1k_input: 0.0005
-        cost_per_1k_output: 0.0015
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 8192
-        temperature: 0.7
-        use_cases:
-        - chat
-        - planning
-      Meta-Llama-3.3-70B-Instruct:
-        context_window: 128000
-        cost_per_1k_input: 0.0006
-        cost_per_1k_output: 0.0012
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 8192
-        temperature: 0.7
-        use_cases:
-        - chat
-        - fast
-    name: SambaNova
-  venice:
-    api_key_env: VENICE_API_KEY
-    base_url: https://api.venice.ai/api/v1
-    models:
-      mistral-31-24b:
-        context_window: 32000
-        cost_per_1k_input: 0.0008
-        cost_per_1k_output: 0.0008
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-      qwen-2.5-72b:
-        context_window: 32000
-        cost_per_1k_input: 0.0008
-        cost_per_1k_output: 0.0008
-        has_vision: false
-        history_fraction: 0.7
-        max_completion_tokens: 4096
-        temperature: 0.7
-        use_cases:
-        - chat
-    name: Venice.ai
-  xai:
-    api_key_env: XAI_API_KEY
-    base_url: https://api.x.ai/v1
-    models:
-      grok-3:
+      microsoft/phi-3-mini-4k-instruct:
         context_window: 131072
-        cost_per_1k_input: 0.003
-        cost_per_1k_output: 0.015
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
         has_vision: false
         history_fraction: 0.7
-        max_completion_tokens: 8192
+        max_completion_tokens: 16384
+        stream: true
         temperature: 0.7
+        top_p: 1.0
         use_cases:
         - chat
-        - planning
-      grok-3-mini:
+      microsoft/phi-3-small-128k-instruct:
         context_window: 131072
-        cost_per_1k_input: 0.0003
-        cost_per_1k_output: 0.0005
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
         has_vision: false
         history_fraction: 0.7
-        max_completion_tokens: 8192
+        max_completion_tokens: 16384
+        stream: true
         temperature: 0.7
+        top_p: 1.0
         use_cases:
         - chat
-        - fast
-    name: xAI (Grok)
+      microsoft/phi-3-small-8k-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      microsoft/phi-3-vision-128k-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      microsoft/phi-3.5-mini-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      microsoft/phi-3.5-moe-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      microsoft/phi-3.5-vision-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      microsoft/phi-4-mini-flash-reasoning:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      microsoft/phi-4-mini-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      microsoft/phi-4-multimodal-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      minimaxai/minimax-m2.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      minimaxai/minimax-m2.5:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/codestral-22b-instruct-v0.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/devstral-2-123b-instruct-2512:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/magistral-small-2506:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mamba-codestral-7b-v0.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mathstral-7b-v0.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/ministral-14b-instruct-2512:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mistral-7b-instruct-v0.2:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mistral-7b-instruct-v0.3:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mistral-large:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mistral-large-2-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mistral-large-3-675b-instruct-2512:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mistral-medium-3-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mistral-nemotron:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mistral-small-24b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mistral-small-3.1-24b-instruct-2503:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mixtral-8x22b-instruct-v0.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mixtral-8x22b-v0.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mistralai/mixtral-8x7b-instruct-v0.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      moonshotai/kimi-k2-instruct-0905:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      moonshotai/kimi-k2-thinking:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nv-mistralai/mistral-nemo-12b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/cosmos-reason2-8b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/embed-qa-4:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/gliner-pii:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.1-nemoguard-8b-content-safety:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.1-nemoguard-8b-topic-control:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.1-nemotron-51b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.1-nemotron-70b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.1-nemotron-70b-reward:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.1-nemotron-nano-4b-v1.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.1-nemotron-nano-8b-v1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.1-nemotron-nano-vl-8b-v1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.1-nemotron-safety-guard-8b-v3:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.1-nemotron-ultra-253b-v1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.2-nemoretriever-1b-vlm-embed-v1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.2-nemoretriever-300m-embed-v1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.2-nv-embedqa-1b-v1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.2-nv-embedqa-1b-v2:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.3-nemotron-super-49b-v1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-3.3-nemotron-super-49b-v1.5:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-nemotron-embed-1b-v2:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama-nemotron-embed-vl-1b-v2:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama3-chatqa-1.5-70b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/llama3-chatqa-1.5-8b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/mistral-nemo-minitron-8b-8k-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/mistral-nemo-minitron-8b-base:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nemoretriever-parse:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nemotron-3-nano-30b-a3b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nemotron-4-340b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nemotron-4-340b-reward:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nemotron-4-mini-hindi-4b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nemotron-content-safety-reasoning-4b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nemotron-mini-4b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nemotron-nano-12b-v2-vl:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nemotron-nano-3-30b-a3b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nemotron-parse:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/neva-22b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nv-embed-v1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nv-embedcode-7b-v1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nv-embedqa-e5-v5:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nv-embedqa-mistral-7b-v2:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nvclip:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/nvidia-nemotron-nano-9b-v2:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/riva-translate-4b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/riva-translate-4b-instruct-v1.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/streampetr:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/usdcode-llama-3.1-70b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nvidia/vila:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      openai/gpt-oss-120b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      openai/gpt-oss-20b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      opengpt-x/teuken-7b-instruct-commercial-v0.4:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      qwen/qwen2-7b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      qwen/qwen2.5-7b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      qwen/qwen2.5-coder-32b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      qwen/qwen2.5-coder-7b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      qwen/qwen3-coder-480b-a35b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      qwen/qwen3-next-80b-a3b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      qwen/qwen3-next-80b-a3b-thinking:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      qwen/qwen3.5-122b-a10b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      qwen/qwen3.5-397b-a17b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      qwen/qwq-32b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      rakuten/rakutenai-7b-chat:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      rakuten/rakutenai-7b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      sarvamai/sarvam-m:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      snowflake/arctic-embed-l:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      speakleash/bielik-11b-v2.3-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+    name: LM Studio (local)
+  mercury:
+    api_key_env: MERCURY_API_KEY
+    base_url: https://api.inceptionlabs.ai/v1
+    models:
+      bigcode/starcoder2-7b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      bytedance/seed-oss-36b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      databricks/dbrx-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      deepseek-ai/deepseek-coder-6.7b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      deepseek-ai/deepseek-r1-distill-llama-8b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      deepseek-ai/deepseek-r1-distill-qwen-14b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      deepseek-ai/deepseek-r1-distill-qwen-32b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      deepseek-ai/deepseek-r1-distill-qwen-7b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      deepseek-ai/deepseek-v3.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      deepseek-ai/deepseek-v3.1-terminus:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      deepseek-ai/deepseek-v3.2:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/codegemma-1.1-7b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/codegemma-7b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/deplot:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/gemma-2-27b-it:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/gemma-2-2b-it:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/gemma-2-9b-it:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/gemma-2b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/gemma-3-12b-it:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/gemma-3-1b-it:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/gemma-3-27b-it:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/gemma-3-4b-it:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/gemma-3n-e2b-it:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/gemma-3n-e4b-it:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/gemma-7b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/paligemma:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/recurrentgemma-2b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      google/shieldgemma-9b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      gotocompany/gemma-2-9b-cpt-sahabatai-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      ibm/granite-3.0-3b-a800m-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      ibm/granite-3.0-8b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      ibm/granite-3.3-8b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      ibm/granite-34b-code-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      ibm/granite-8b-code-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      ibm/granite-guardian-3.0-8b:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      igenius/colosseum_355b_instruct_16k:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      igenius/italia_10b_instruct_16k:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      institute-of-science-tokyo/llama-3.1-swallow-70b-instruct-v0.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      institute-of-science-tokyo/llama-3.1-swallow-8b-instruct-v0.1:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      marin/marin-8b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      mediatek/breeze-7b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        
