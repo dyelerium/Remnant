@@ -522,14 +522,19 @@ class AgentRuntime:
         # Format 4: ```tool_name\n{args json}\n``` — qwen3/ollama native style
         # tool name is the code block language tag; body is raw args (no name/args wrapper)
         for match in re.finditer(r"```(\w+)\s*\n(\{.*?\})\s*\n```", response, re.DOTALL):
-            tool_name = match.group(1)
-            if tool_name == "tool":
+            lang = match.group(1)
+            if lang == "tool":
                 continue  # already handled as format 1
             try:
-                args = json.loads(match.group(2).strip())
-                calls.append((tool_name, args))
+                obj = json.loads(match.group(2).strip())
             except json.JSONDecodeError:
-                pass
+                continue
+            # Format 4a: ```json\n{"name":"...","args":{...}}\n``` — qwen3.5 style
+            # The body uses Format 1 structure but with "json" as code fence language.
+            if lang == "json" and "name" in obj and "args" in obj:
+                calls.append((obj["name"], obj["args"]))
+            else:
+                calls.append((lang, obj))
 
         return calls
 
