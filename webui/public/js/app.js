@@ -145,7 +145,15 @@ document.addEventListener('alpine:init', () => {
     chats: [],
     activeChatId: null,
     get activeChat() { return this.chats.find(c => c.id === this.activeChatId) || null; },
-    get activeMessages() { return this.activeChat?.messages || []; },
+    get activeMessages() {
+      const chat = this.activeChat;
+      if (!chat) return [];
+      // Archived chats have messages in archivedMessages (current messages are empty)
+      if (chat.messages.length === 0 && chat.archivedMessages?.length > 0) {
+        return chat.archivedMessages;
+      }
+      return chat.messages;
+    },
 
     /* --- View state --- */
     activeView: null,         // null = chat, 'project-memory-<id>' = project memory view
