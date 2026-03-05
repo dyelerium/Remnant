@@ -311,12 +311,15 @@ document.addEventListener('alpine:init', () => {
     },
 
     get modelProviderTabs() {
-      const providers = [...new Set(this.availableModels.map(m => m.provider))];
+      // Only show provider tabs that have at least one model with an available API key
+      const providers = [...new Set(
+        this.availableModels.filter(m => m.has_key).map(m => m.provider)
+      )];
       return providers.length > 0 ? providers : ['openrouter', 'anthropic', 'openai', 'ollama'];
     },
 
     get modelsForTab() {
-      return this.availableModels.filter(m => m.provider === this.modelProviderTab);
+      return this.availableModels.filter(m => m.provider === this.modelProviderTab && m.has_key);
     },
 
     get shortModelName() {
@@ -1082,10 +1085,9 @@ document.addEventListener('alpine:init', () => {
         if (resp.ok) {
           const data = await resp.json();
           this.availableModels = data.models || [];
-          // Default to first available provider tab
-          if (this.availableModels.length > 0) {
-            this.modelProviderTab = this.availableModels[0].provider;
-          }
+          // Default to first provider tab that has a valid API key
+          const firstWithKey = this.availableModels.find(m => m.has_key);
+          if (firstWithKey) this.modelProviderTab = firstWithKey.provider;
         }
       } catch (_) {}
     },
