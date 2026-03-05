@@ -488,7 +488,12 @@ class AgentRuntime:
         ):
             return True
         # Format 4: ```{tool_name}\n{args json}\n``` — qwen3/ollama native style
-        return bool(re.search(r"```\w+\s*\n\s*\{", response))
+        if re.search(r"```\w+\s*\n\s*\{", response):
+            return True
+        # Format 5: inline {"tool":"...","args":{...}} or {"name":"...","args":{...}}
+        if re.search(r'\{"(?:tool|name)"\s*:\s*"[^"]+"\s*,\s*"args"\s*:', response):
+            return True
+        return False
 
     def _strip_tool_blocks(self, response: str) -> str:
         """Remove tool call blocks (all formats) from text."""
@@ -500,6 +505,8 @@ class AgentRuntime:
         text = re.sub(r"<tool>.*?</tool>", "", text, flags=re.DOTALL)
         # Strip format 4: ```tool_name\n{args}\n``` (qwen3 native style)
         text = re.sub(r"```\w+\s*\n\s*\{.*?\}\s*\n```", "", text, flags=re.DOTALL)
+        # Strip format 5: inline {"tool":"...","args":{...}} JSON objects
+        text = re.sub(r'\{[^{}]*"(?:tool|name)"\s*:\s*"[^"]+"\s*,\s*"args"\s*:\s*\{[^{}]*\}[^{}]*\}', "", text)
         return text.strip()
 
     def _parse_tool_calls(self, response: str) -> list[tuple[str, dict]]:
@@ -550,6 +557,21 @@ class AgentRuntime:
                 calls.append((obj["name"], obj["args"]))
             else:
                 calls.append((lang, obj))
+
+        # Format 5: inline {"tool":"...","args":{...}} or {"name":"...","args":{...}}
+        # Some models write tool calls inline without code fences.
+        # Only run if no calls found yet (avoids double-counting fenced variants).
+        if not calls:
+            for match in re.finditer(
+                r'\{[^{}]*"(?:tool|name)"\s*:\s*"([^"]+)"[^{}]*"args"\s*:\s*(\{[^{}]*\})[^{}]*\}',
+                response,
+            ):
+                try:
+                    tool_name = match.group(1)
+                    tool_args = json.loads(match.group(2))
+                    calls.append((tool_name, tool_args))
+                except (json.JSONDecodeError, IndexError):
+                    pass
 
         return calls
 

@@ -312,6 +312,12 @@ async def websocket_chat(ws: WebSocket) -> None:
 
             await ws.send_json({"type": "done", "session_id": session_id})
 
+            # Mirror the exchange to Telegram if a primary chat is configured
+            if response_parts and _redis:
+                asyncio.create_task(
+                    _mirror_to_telegram(message, response_parts, _redis)
+                )
+
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
         # Cancel any in-flight session for this connection
