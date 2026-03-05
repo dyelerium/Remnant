@@ -334,6 +334,18 @@ providers:
         temperature: 0.7
         use_cases:
         - chat
+      gemma3:4b:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
       glm-4.7:cloud:
         context_window: 128000
         cost_per_1k_input: 0.0
@@ -372,6 +384,18 @@ providers:
         history_fraction: 0.7
         max_completion_tokens: 4096
         temperature: 0.7
+        use_cases:
+        - chat
+      granite4:3b:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
         use_cases:
         - chat
       kimi-k2.5:cloud:
@@ -438,6 +462,18 @@ providers:
         temperature: 0.0
         use_cases:
         - embedding
+      nomic-embed-text-v2-moe:latest:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
       nomic-embed-text:latest:
         context_window: 128000
         cost_per_1k_input: 0.0
@@ -488,6 +524,18 @@ providers:
         temperature: 0.7
         use_cases:
         - chat
+      qwen3.5:4b:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
       qwen3:4b:
         context_window: 128000
         cost_per_1k_input: 0.0
@@ -504,6 +552,18 @@ providers:
         - compaction
         - fast
         - planning
+      translategemma:4b:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
     name: Ollama (local)
   openai:
     api_key_env: OPENAI_API_KEY
