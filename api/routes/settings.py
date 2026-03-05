@@ -91,6 +91,9 @@ async def get_settings(request: Request) -> dict:
             "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
             "api_key_set": bool(os.environ.get("OLLAMA_API_KEY", "")),
         },
+        "lmstudio": {
+            "base_url": os.environ.get("LMSTUDIO_BASE_URL", ""),
+        },
         "budget_mode": bool(config.get("budget_mode", False)),
     }
 
@@ -278,6 +281,48 @@ async def test_ollama_connection() -> dict:
             resp.raise_for_status()
             data = resp.json()
         models = [m.get("name", "") for m in data.get("models", [])]
+        return {"reachable": True, "model_count": len(models), "models": models[:20]}
+    except Exception as exc:
+        return {"reachable": False, "error": str(exc)}
+
+
+# -----------------------------------------------------------------------
+# LM Studio settings
+# -----------------------------------------------------------------------
+
+class LMStudioRequest(BaseModel):
+    url: str   # e.g. "http://192.168.1.5:1234/v1"
+
+
+@router.post("/settings/lmstudio")
+async def save_lmstudio_settings(body: LMStudioRequest, request: Request) -> dict:
+    """Save LM Studio base URL to .env and reload registry."""
+    url = body.url.rstrip("/")
+    os.environ["LMSTUDIO_BASE_URL"] = url
+    _update_dot_env("LMSTUDIO_BASE_URL", url)
+
+    registry = request.app.state.registry
+    registry.reload_from_yaml({
+        "providers": registry._providers_cfg,
+        "defaults": registry._defaults,
+        "fallback_chain": registry._fallback_chain,
+    })
+
+    return {"status": "saved", "url": url}
+
+
+@router.get("/settings/lmstudio/test")
+async def test_lmstudio_connection() -> dict:
+    """Test connectivity to the configured LM Studio instance."""
+    base_url = os.environ.get("LMSTUDIO_BASE_URL", "")
+    if not base_url:
+        return {"reachable": False, "error": "LMSTUDIO_BASE_URL not configured"}
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(f"{base_url}/models")
+            resp.raise_for_status()
+            data = resp.json()
+        models = [m.get("id", "") for m in data.get("data", [])]
         return {"reachable": True, "model_count": len(models), "models": models[:20]}
     except Exception as exc:
         return {"reachable": False, "error": str(exc)}

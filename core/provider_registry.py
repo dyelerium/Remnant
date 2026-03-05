@@ -64,6 +64,12 @@ class ProviderRegistry:
             api_key = os.environ.get(api_key_env, "") if api_key_env else None
             base_url = _resolve_env(provider_cfg.get("base_url"))
 
+            # For providers with no API key requirement (api_key_env=null), skip if
+            # base_url resolved to empty — these are local providers (LM Studio etc.)
+            # that must be explicitly configured via their env var before they show models.
+            if api_key_env is None and base_url == "":
+                continue
+
             extra_headers = provider_cfg.get("extra_headers", {})
 
             for model_name, model_cfg in provider_cfg.get("models", {}).items():

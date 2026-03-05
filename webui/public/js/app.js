@@ -193,6 +193,9 @@ document.addEventListener('alpine:init', () => {
     ollamaApiKey: '',
     ollamaTesting: false,
     ollamaTestResult: null,
+    lmstudioUrl: '',
+    lmstudioTesting: false,
+    lmstudioTestResult: null,
 
     /* --- Models tab redesign --- */
     modelProviderTab: 'openrouter',
@@ -1061,6 +1064,10 @@ document.addEventListener('alpine:init', () => {
           if (this.settingsData.ollama?.base_url && !this.ollamaUrl) {
             this.ollamaUrl = this.settingsData.ollama.base_url;
           }
+          // Pre-populate LM Studio URL from settings
+          if (this.settingsData.lmstudio?.base_url !== undefined) {
+            this.lmstudioUrl = this.settingsData.lmstudio.base_url;
+          }
           // Sync budget mode global default
           if (this.settingsData.budget_mode !== undefined) {
             this.budgetModeEnabled = this.settingsData.budget_mode;
@@ -1295,6 +1302,37 @@ document.addEventListener('alpine:init', () => {
           body: JSON.stringify({ url: this.ollamaUrl, api_key: this.ollamaApiKey }),
         });
         if (resp.ok) await this.loadSettingsData();
+      } catch (_) {}
+    },
+
+    async testLmStudio() {
+      this.lmstudioTesting = true;
+      this.lmstudioTestResult = null;
+      try {
+        if (this.lmstudioUrl) {
+          await fetch('/api/settings/lmstudio', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: this.lmstudioUrl }),
+          });
+        }
+        const resp = await fetch('/api/settings/lmstudio/test');
+        if (resp.ok) this.lmstudioTestResult = await resp.json();
+        else this.lmstudioTestResult = { reachable: false, error: 'Request failed' };
+      } catch (e) {
+        this.lmstudioTestResult = { reachable: false, error: e.message };
+      } finally {
+        this.lmstudioTesting = false;
+      }
+    },
+
+    async saveLmStudio() {
+      try {
+        const resp = await fetch('/api/settings/lmstudio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: this.lmstudioUrl }),
+        });
+        if (resp.ok) { await this.loadSettingsData(); await this.loadModels(); }
       } catch (_) {}
     },
 

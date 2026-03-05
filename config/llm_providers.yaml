@@ -129,7 +129,7 @@ providers:
     name: Groq
   lmstudio:
     api_key_env: null
-    base_url: http://localhost:1234/v1
+    base_url: ${LMSTUDIO_BASE_URL:}
     models:
       local-model:
         context_window: 32000
@@ -1822,4 +1822,448 @@ providers:
         history_fraction: 0.7
         max_completion_tokens: 16384
         stream: true
-        
+  mistral:
+    api_key_env: MISTRAL_API_KEY
+    base_url: https://api.mistral.ai/v1
+    models:
+      mistral-large-latest:
+        context_window: 128000
+        cost_per_1k_input: 0.002
+        cost_per_1k_output: 0.006
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+      mistral-small-latest:
+        context_window: 128000
+        cost_per_1k_input: 0.0001
+        cost_per_1k_output: 0.0003
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - fast
+        - compaction
+    name: Mistral AI
+  moonshot:
+    api_key_env: MOONSHOT_API_KEY
+    base_url: https://api.moonshot.cn/v1
+    models:
+      kimi-k1.5:
+        context_window: 128000
+        cost_per_1k_input: 0.0003
+        cost_per_1k_output: 0.0009
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - compaction
+        - fast
+      kimi-k2.5:
+        context_window: 128000
+        cost_per_1k_input: 0.0005
+        cost_per_1k_output: 0.0015
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+        - curator
+        - compaction
+        - default
+      kimi-latest:
+        context_window: 128000
+        cost_per_1k_input: 0.0005
+        cost_per_1k_output: 0.0015
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+        - curator
+        - compaction
+        - default
+    name: Moonshot AI
+  nvidia:
+    api_key_env: NVIDIA_API_KEY
+    base_url: https://integrate.api.nvidia.com/v1
+    models:
+      meta/llama-3.3-70b-instruct:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+        - fast
+      moonshotai/kimi-k2.5:
+        context_window: 131072
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 16384
+        stream: true
+        temperature: 0.4
+        top_p: 1.0
+        use_cases:
+        - chat
+        - planning
+        - curator
+        - compaction
+    name: NVIDIA NIM
+  ollama:
+    api_key_env: null
+    base_url: null
+    models:
+      embeddinggemma:latest:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      gemma3:4b:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      glm-4.7:cloud:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      granite4:3b:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      kimi-k2.5:cloud:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      llama3.2:latest:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      ministral-3:3b:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      nomic-embed-text-v2-moe:latest:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+      qwen3.5:4b:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.3
+        top_p: 1.0
+        use_cases:
+        - chat
+        - fast
+        - compaction
+      qwen3:4b:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.4
+        top_p: 1.0
+        use_cases:
+        - chat
+        - fast
+        - compaction
+        - curator
+      translategemma:4b:
+        context_window: 128000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        stream: true
+        temperature: 0.7
+        top_p: 1.0
+        use_cases:
+        - chat
+    name: Ollama (local)
+  openai:
+    api_key_env: OPENAI_API_KEY
+    base_url: null
+    models:
+      gpt-4o:
+        context_window: 128000
+        cost_per_1k_input: 0.005
+        cost_per_1k_output: 0.015
+        has_vision: true
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+      gpt-4o-mini:
+        context_window: 128000
+        cost_per_1k_input: 0.00015
+        cost_per_1k_output: 0.0006
+        has_vision: true
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+        - compaction
+        - fast
+      text-embedding-3-small:
+        context_window: 8192
+        cost_per_1k_input: 2.0e-05
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 0
+        temperature: 0.0
+        use_cases:
+        - embedding
+    name: OpenAI
+  openrouter:
+    api_key_env: OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+    extra_headers:
+      HTTP-Referer: http://localhost:8000
+      X-Title: Remnant
+    models:
+      google/gemini-3.1-pro-preview:
+        context_window: 1048576
+        cost_per_1k_input: 0.002
+        cost_per_1k_output: 0.008
+        has_vision: true
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+      meta-llama/llama-3.1-8b-instruct:
+        context_window: 128000
+        cost_per_1k_input: 5.5e-05
+        cost_per_1k_output: 5.5e-05
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+        - fast
+      mistralai/mixtral-8x7b-instruct:
+        context_window: 32000
+        cost_per_1k_input: 0.00024
+        cost_per_1k_output: 0.00024
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+        - compaction
+      qwen/qwen3-next-80b-a3b-instruct:free:
+        context_window: 32000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+        - curator
+        - compaction
+        - default
+      stepfun/step-3.5-flash:free:
+        context_window: 32000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+        - curator
+        - compaction
+        - fast
+        - default
+      upstage/solar-pro-3:free:
+        context_window: 32000
+        cost_per_1k_input: 0.0
+        cost_per_1k_output: 0.0
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+    name: OpenRouter
+  sambanova:
+    api_key_env: SAMBANOVA_API_KEY
+    base_url: https://api.sambanova.ai/v1
+    models:
+      DeepSeek-R1-0528:
+        context_window: 128000
+        cost_per_1k_input: 0.0005
+        cost_per_1k_output: 0.0015
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+      Meta-Llama-3.3-70B-Instruct:
+        context_window: 128000
+        cost_per_1k_input: 0.0006
+        cost_per_1k_output: 0.0012
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - fast
+    name: SambaNova
+  venice:
+    api_key_env: VENICE_API_KEY
+    base_url: https://api.venice.ai/api/v1
+    models:
+      mistral-31-24b:
+        context_window: 32000
+        cost_per_1k_input: 0.0008
+        cost_per_1k_output: 0.0008
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+      qwen-2.5-72b:
+        context_window: 32000
+        cost_per_1k_input: 0.0008
+        cost_per_1k_output: 0.0008
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 4096
+        temperature: 0.7
+        use_cases:
+        - chat
+    name: Venice.ai
+  xai:
+    api_key_env: XAI_API_KEY
+    base_url: https://api.x.ai/v1
+    models:
+      grok-3:
+        context_window: 131072
+        cost_per_1k_input: 0.003
+        cost_per_1k_output: 0.015
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - planning
+      grok-3-mini:
+        context_window: 131072
+        cost_per_1k_input: 0.0003
+        cost_per_1k_output: 0.0005
+        has_vision: false
+        history_fraction: 0.7
+        max_completion_tokens: 8192
+        temperature: 0.7
+        use_cases:
+        - chat
+        - fast
+    name: xAI (Grok)

@@ -612,6 +612,35 @@
               <span x-show="!ollamaTestResult?.reachable" style="color:var(--err)" x-text="'✗ ' + (ollamaTestResult?.error || 'Not reachable')"></span>
             </div>
           </div>
+
+          <!-- LM Studio section -->
+          <div style="border-top:1px solid var(--border);margin-top:20px;padding-top:16px">
+            <h4 style="font-size:13px;font-weight:600;margin-bottom:4px;color:var(--text)">LM Studio (Local)</h4>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">
+              Connect to a local LM Studio instance. Models only appear once a URL is saved.
+            </p>
+            <div class="form-group">
+              <label class="form-label">LM Studio URL</label>
+              <div style="display:flex;gap:8px">
+                <input class="form-input" type="text"
+                       placeholder="http://localhost:1234/v1"
+                       x-model="lmstudioUrl" style="flex:1" />
+                <button class="btn-secondary" @click="testLmStudio()"
+                        :disabled="lmstudioTesting" style="white-space:nowrap">
+                  <span x-show="lmstudioTesting" class="spinner" style="width:12px;height:12px;border-width:1.5px;margin-right:4px"></span>
+                  Test
+                </button>
+                <button class="btn-primary" @click="saveLmStudio()" style="white-space:nowrap">Save</button>
+              </div>
+            </div>
+            <div x-show="lmstudioTestResult" style="margin-top:8px;font-size:12px;padding:8px 12px;border-radius:6px;background:var(--bg3);border:1px solid var(--border)">
+              <span x-show="lmstudioTestResult?.reachable" style="color:#10b981">
+                ✓ Connected — <span x-text="lmstudioTestResult?.model_count"></span> model(s) loaded:
+                <span x-text="(lmstudioTestResult?.models || []).join(', ')"></span>
+              </span>
+              <span x-show="!lmstudioTestResult?.reachable" style="color:var(--err)" x-text="'✗ ' + (lmstudioTestResult?.error || 'Not reachable')"></span>
+            </div>
+          </div>
         </div>
 
         <!-- Models -->
