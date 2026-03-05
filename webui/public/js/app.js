@@ -1673,7 +1673,8 @@ document.addEventListener('alpine:init', () => {
               agent.llm = providerMap[agent.llm];
             }
             // Repair corrupted model field that contains a full 'provider/model' key
-            if (agent.model && agent.model.includes('/')) {
+            // Only run when llm is missing — if llm is set, the slash is part of the model name
+            if (!agent.llm && agent.model && agent.model.includes('/')) {
               const slash = agent.model.indexOf('/');
               agent.llm = agent.model.substring(0, slash);
               agent.model = agent.model.substring(slash + 1);

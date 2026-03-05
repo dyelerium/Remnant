@@ -529,7 +529,7 @@
         <div class="settings-nav-item" :class="{ active: settingsTab === 'usage' }" @click="settingsTab = 'usage'; loadUsage()">
           <span>📊</span> Usage
         </div>
-        <div class="settings-nav-item" :class="{ active: settingsTab === 'agents' }" @click="settingsTab = 'agents'; loadAgents()">
+        <div class="settings-nav-item" :class="{ active: settingsTab === 'agents' }" @click="settingsTab = 'agents'; loadAgents(); loadModels()">
           <span>🤝</span> Agents
         </div>
         <div class="settings-nav-item" :class="{ active: settingsTab === 'admin' }" @click="settingsTab = 'admin'; loadAdmin()">
