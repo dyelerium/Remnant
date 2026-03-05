@@ -517,7 +517,7 @@
         <div class="settings-nav-item" :class="{ active: settingsTab === 'api' }" @click="settingsTab = 'api'">
           <span>🔑</span> API Keys
         </div>
-        <div class="settings-nav-item" :class="{ active: settingsTab === 'models' }" @click="settingsTab = 'models'; loadModels(); loadCostBreakdown()">
+        <div class="settings-nav-item" :class="{ active: settingsTab === 'models' }" @click="settingsTab = 'models'; loadModels(); loadCostBreakdown(); loadFallback()">
           <span>🤖</span> Models
         </div>
         <div class="settings-nav-item" :class="{ active: settingsTab === 'connectors' }" @click="settingsTab = 'connectors'; loadConnectors()">
@@ -776,6 +776,20 @@
                                    :value="((modelConfigForm[m.key]?.cost_per_1k_output ?? m.cost_per_1k_output ?? 0) * 1000).toFixed(3)"
                                    @input="setModelConfigField(m.key, 'cost_per_1k_output', +$event.target.value / 1000)" />
                           </div>
+                          <!-- Daily token cap -->
+                          <div class="form-group" style="margin:0;grid-column:1/-1">
+                            <label class="form-label" style="font-size:11px">Daily token cap (0 = unlimited) — triggers fallback when exceeded</label>
+                            <div style="display:flex;gap:8px;align-items:center">
+                              <input class="form-input" type="number" min="0" step="100000" style="font-size:12px;flex:1"
+                                     :value="modelConfigForm[m.key]?.daily_token_cap ?? m.daily_token_cap ?? 0"
+                                     @input="setModelConfigField(m.key, 'daily_token_cap', +$event.target.value)" />
+                              <span style="font-size:11px;color:var(--text-dim);white-space:nowrap"
+                                    x-show="m.daily_token_cap > 0">
+                                Used today: <span x-text="(m.tokens_today||0).toLocaleString()" style="color:var(--text)"></span>
+                                / <span x-text="(m.daily_token_cap||0).toLocaleString()"></span>
+                              </span>
+                            </div>
+                          </div>
                         </div>
                         <div style="display:flex;gap:8px;align-items:center">
                           <label style="display:flex;align-items:center;gap:6px;font-size:12px">
@@ -827,6 +841,41 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <!-- Fallback chain -->
+          <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px">
+            <div style="display:flex;align-items:center;margin-bottom:4px">
+              <h4 style="font-size:13px;font-weight:600;color:var(--text);margin:0">Fallback Chain</h4>
+              <button class="btn-ghost" style="font-size:11px;margin-left:auto" @click="loadFallback()">↻ Refresh</button>
+            </div>
+            <p style="font-size:11px;color:var(--text-dim);margin:0 0 10px">
+              If the primary model fails or exceeds its daily cap, Remnant tries these in order.
+            </p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:11px">1st fallback</label>
+                <select class="form-input" style="font-size:12px" x-model="fallbackForm.first">
+                  <option value="">— none —</option>
+                  <template x-for="m in availableModels.filter(m => m.has_key)" :key="'fb1-' + m.key">
+                    <option :value="m.key" x-text="m.key"></option>
+                  </template>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label class="form-label" style="font-size:11px">2nd fallback</label>
+                <select class="form-input" style="font-size:12px" x-model="fallbackForm.second">
+                  <option value="">— none —</option>
+                  <template x-for="m in availableModels.filter(m => m.has_key)" :key="'fb2-' + m.key">
+                    <option :value="m.key" x-text="m.key"></option>
+                  </template>
+                </select>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <button class="btn-primary" style="font-size:12px;padding:4px 14px" @click="saveFallback()">Save fallback chain</button>
+              <span x-show="fallbackSaveStatus" x-text="fallbackSaveStatus" style="font-size:11px;color:#10b981"></span>
+            </div>
           </div>
         </div>
 

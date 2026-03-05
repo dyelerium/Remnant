@@ -6,6 +6,7 @@ global:
   max_cost_usd_per_hour: 5.0
   max_tokens_per_day: 1000000
   max_tokens_per_hour: 500000
+  model_caps: {}
   on_budget_exhausted: stop
   warn_at_fraction: 0.8
 projects:

@@ -107,6 +107,19 @@ class LLMClient:
         all_specs = [spec] + fallback_specs
 
         for attempt, current_spec in enumerate(all_specs):
+            # Check per-model daily cap before attempting this model
+            model_key = f"{current_spec.provider}/{current_spec.model}"
+            try:
+                self.budget.check_model_cap(model_key, estimated_tokens)
+            except Exception as cap_exc:  # ModelCapExceeded
+                if attempt < len(all_specs) - 1:
+                    next_spec = all_specs[attempt + 1]
+                    logger.warning("[LLM] %s — falling back to %s/%s", cap_exc, next_spec.provider, next_spec.model)
+                    yield f"\n[SYS] {cap_exc} — switching to {next_spec.provider}/{next_spec.model}…\n"
+                    continue
+                from .budget_manager import BudgetExceeded
+                raise BudgetExceeded(str(cap_exc))
+
             try:
                 async for chunk in self._dispatch_chat_stream(
                     current_spec, messages, max_tokens, temperature,

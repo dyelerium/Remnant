@@ -13,6 +13,11 @@ class BudgetExceeded(Exception):
     pass
 
 
+class ModelCapExceeded(Exception):
+    """Raised when a specific model's daily token cap is exceeded — triggers fallback."""
+    pass
+
+
 class BudgetManager:
     """Track token/cost usage and enforce per-project and global caps."""
 
@@ -30,6 +35,8 @@ class BudgetManager:
         self._fallback_chain: list[str] = budget_cfg.get("fallback_chain", [])
         self._window: int = config.get("window_seconds", 86400)
         self._prefix: str = config.get("redis_prefix", "budget")
+        # Per-model daily token caps: {"provider/model": max_tokens}
+        self._model_caps: dict[str, int] = budget_cfg.get("model_caps", {})
 
     # ------------------------------------------------------------------
     # Public API
@@ -73,6 +80,37 @@ class BudgetManager:
             proj_max = proj_cfg.get("max_tokens_per_day")
             if proj_max and (proj_tokens_day + estimated_tokens) > proj_max:
                 self._handle_exceeded(f"project {project_id} daily token cap", project_id)
+
+    def check_model_cap(self, model_key: str, estimated_tokens: int = 0) -> None:
+        """Raise ModelCapExceeded if this model has exceeded its daily token cap."""
+        cap = self._model_caps.get(model_key)
+        if not cap:
+            return
+        day_key = self._window_key("day")
+        # Redis key stores provider:model (colon) — convert from provider/model (slash)
+        pkey = model_key.replace("/", ":", 1)
+        model_tokens = self._get_counter(f"tokens:by_provider:{pkey}:{day_key}")
+        if (model_tokens + estimated_tokens) > cap:
+            raise ModelCapExceeded(
+                f"Model {model_key} daily cap of {cap:,} tokens exceeded "
+                f"(used today: {model_tokens:,})"
+            )
+
+    def get_model_tokens_today(self, model_key: str) -> int:
+        """Return tokens used today for a specific model key (provider/model)."""
+        day_key = self._window_key("day")
+        pkey = model_key.replace("/", ":", 1)
+        return self._get_counter(f"tokens:by_provider:{pkey}:{day_key}")
+
+    def set_model_cap(self, model_key: str, cap: int) -> None:
+        """Set or clear (cap=0) the daily token cap for a model at runtime."""
+        if cap <= 0:
+            self._model_caps.pop(model_key, None)
+        else:
+            self._model_caps[model_key] = cap
+
+    def get_model_caps(self) -> dict[str, int]:
+        return dict(self._model_caps)
 
     def record_usage(
         self,

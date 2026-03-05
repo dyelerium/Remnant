@@ -18,9 +18,14 @@ router = APIRouter(tags=["llm"])
 @router.get("/llm/providers")
 async def list_providers(request: Request) -> dict:
     registry = request.app.state.registry
-    models = [
-        {
-            "key": f"{s.provider}/{s.model}",
+    budget = request.app.state.budget
+    model_caps = budget.get_model_caps()
+    models = []
+    for s in registry.list_models():
+        key = f"{s.provider}/{s.model}"
+        cap = model_caps.get(key, 0)
+        models.append({
+            "key": key,
             "provider": s.provider,
             "model": s.model,
             # has_key: True = api_key not required (local) OR key is present
@@ -39,9 +44,9 @@ async def list_providers(request: Request) -> dict:
             "has_thinking": s.has_thinking,
             "thinking_enabled": s.thinking_enabled,
             "thinking_budget_tokens": s.thinking_budget_tokens,
-        }
-        for s in registry.list_models()
-    ]
+            "daily_token_cap": cap,
+            "tokens_today": budget.get_model_tokens_today(key) if cap else 0,
+        })
     return {"models": models, "count": len(models)}
 
 

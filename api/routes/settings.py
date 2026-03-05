@@ -351,3 +351,80 @@ async def set_budget_mode(body: BudgetModeRequest, request: Request) -> dict:
         return {"status": "saved", "budget_mode": body.budget_mode}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# -----------------------------------------------------------------------
+# Fallback chain management
+# -----------------------------------------------------------------------
+
+_PROVIDERS_YAML = Path("/app/config/llm_providers.yaml") if Path("/app/config").exists() else Path("config/llm_providers.yaml")
+_BUDGET_YAML = Path("/app/config/budget.yaml") if Path("/app/config").exists() else Path("config/budget.yaml")
+
+
+@router.get("/settings/fallback")
+async def get_fallback_chain(request: Request) -> dict:
+    """Return the current global fallback chain."""
+    registry = request.app.state.registry
+    return {"fallback_chain": registry.get_fallback_chain()}
+
+
+class FallbackRequest(BaseModel):
+    fallback_chain: list[str]   # ordered list of "provider/model" keys
+
+
+@router.post("/settings/fallback")
+async def save_fallback_chain(body: FallbackRequest, request: Request) -> dict:
+    """Persist the fallback chain to llm_providers.yaml and reload registry."""
+    registry = request.app.state.registry
+    known = {f"{m.provider}/{m.model}" for m in registry.list_models()}
+    bad = [k for k in body.fallback_chain if k and k not in known]
+    if bad:
+        raise HTTPException(status_code=400, detail=f"Unknown model keys: {bad}")
+
+    p = _PROVIDERS_YAML if _PROVIDERS_YAML.exists() else Path("config/llm_providers.yaml")
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        cfg["fallback_chain"] = body.fallback_chain
+        with open(p, "w", encoding="utf-8") as f:
+            yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
+        registry.reload_from_yaml({
+            "providers": cfg.get("providers", {}),
+            "defaults": cfg.get("defaults", {}),
+            "fallback_chain": body.fallback_chain,
+        })
+        return {"status": "saved", "fallback_chain": body.fallback_chain}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# -----------------------------------------------------------------------
+# Per-model daily token cap
+# -----------------------------------------------------------------------
+
+class ModelCapRequest(BaseModel):
+    model_key: str      # "provider/model"
+    daily_token_cap: int   # 0 = unlimited
+
+
+@router.post("/settings/model-cap")
+async def save_model_cap(body: ModelCapRequest, request: Request) -> dict:
+    """Set (or clear) the daily token cap for a specific model."""
+    budget = request.app.state.budget
+    budget.set_model_cap(body.model_key, body.daily_token_cap)
+
+    # Persist to budget.yaml
+    p = _BUDGET_YAML if _BUDGET_YAML.exists() else Path("config/budget.yaml")
+    try:
+        cfg = yaml.safe_load(p.read_text()) if p.exists() else {}
+        caps = cfg.setdefault("global", {}).setdefault("model_caps", {})
+        if body.daily_token_cap <= 0:
+            caps.pop(body.model_key, None)
+        else:
+            caps[body.model_key] = body.daily_token_cap
+        p.write_text(yaml.dump(cfg, default_flow_style=False, allow_unicode=True))
+        return {"status": "saved", "model_key": body.model_key, "daily_token_cap": body.daily_token_cap}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

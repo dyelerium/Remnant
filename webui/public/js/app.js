@@ -258,6 +258,8 @@ document.addEventListener('alpine:init', () => {
     /* --- Admin tab --- */
     adminLoaded: false,
     budgetForm: { max_cost_usd_per_day: null, max_tokens_per_day: null },
+    fallbackForm: { first: '', second: '' },
+    fallbackSaveStatus: '',
     compacting: false, compactionResult: null,
     agentGraph: null, laneStatus: null,
     securityTestInput: '', securityTestResult: null,
@@ -1140,11 +1142,48 @@ document.addEventListener('alpine:init', () => {
           body: JSON.stringify(body),
         });
         if (resp.ok) {
+          // Also save daily token cap if it was changed
+          const capValue = overrides.daily_token_cap ?? m.daily_token_cap ?? 0;
+          await fetch('/api/settings/model-cap', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model_key: m.key, daily_token_cap: capValue }),
+          });
           this.modelConfigPanel = null;
           await this.loadModels();
           await this.loadSettingsData();
         }
       } catch (_) {}
+    },
+
+    async loadFallback() {
+      try {
+        const resp = await fetch('/api/settings/fallback');
+        if (resp.ok) {
+          const data = await resp.json();
+          const chain = data.fallback_chain || [];
+          this.fallbackForm.first = chain[0] || '';
+          this.fallbackForm.second = chain[1] || '';
+        }
+      } catch (_) {}
+    },
+
+    async saveFallback() {
+      const chain = [this.fallbackForm.first, this.fallbackForm.second].filter(Boolean);
+      try {
+        const resp = await fetch('/api/settings/fallback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fallback_chain: chain }),
+        });
+        if (resp.ok) {
+          this.fallbackSaveStatus = '✓ Saved';
+          setTimeout(() => { this.fallbackSaveStatus = ''; }, 2500);
+        } else {
+          const err = await resp.json().catch(() => ({}));
+          this.fallbackSaveStatus = '✗ ' + (err.detail || 'Error');
+        }
+      } catch (_) { this.fallbackSaveStatus = '✗ Network error'; }
     },
 
     async refreshProviderModels() {
