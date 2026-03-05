@@ -1179,8 +1179,8 @@
                       <select class="form-input" style="font-size:12px"
                               x-effect="(availableModels.length, agentsData.agents['default'].llm, agentsData.agents['default'].model, $nextTick(() => { $el.value = agentsData.agents['default'].llm + '/' + agentsData.agents['default'].model }))"
                               @change="setAgentModel('default', $event.target.value)">
-                        <template x-for="m in availableModels.filter(m => m.has_key)" :key="m.key">
-                          <option :value="m.key" x-text="m.provider + ' / ' + m.model"></option>
+                        <template x-for="m in availableModels" :key="m.key">
+                          <option :value="m.key" x-text="m.provider + ' / ' + m.model + (m.has_key ? '' : ' ⚠ key missing')"></option>
                         </template>
                       </select>
                     </div>
@@ -1240,8 +1240,8 @@
                       <select class="form-input" style="font-size:12px"
                               x-effect="(availableModels.length, agent.llm, agent.model, $nextTick(() => { $el.value = agent.llm + '/' + agent.model }))"
                               @change="setAgentModel(name, $event.target.value)">
-                        <template x-for="m in availableModels.filter(m => m.has_key)" :key="m.key">
-                          <option :value="m.key" x-text="m.provider + ' / ' + m.model"></option>
+                        <template x-for="m in availableModels" :key="m.key">
+                          <option :value="m.key" x-text="m.provider + ' / ' + m.model + (m.has_key ? '' : ' ⚠ key missing')"></option>
                         </template>
                       </select>
                     </div>

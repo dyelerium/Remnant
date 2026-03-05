@@ -94,9 +94,11 @@ class LLMClient:
         temperature: float = 0.7,
         cancel_event: Optional[asyncio.Event] = None,
         tools: Optional[list] = None,
+        override: Optional[str] = None,
     ) -> AsyncIterator[str]:
         """Async streaming chat. Yields text chunks. Supports cancellation and fallback cascade."""
-        override = f"{provider}/{model}" if provider and model else model
+        if not override:
+            override = f"{provider}/{model}" if provider and model else model
         spec = self.registry.resolve(use_case, project_id, override)
 
         estimated_tokens = sum(len(m.get("content", "")) // 4 for m in messages)
@@ -104,7 +106,20 @@ class LLMClient:
 
         # Build fallback list: primary spec + remaining chain entries
         fallback_specs = self._get_fallback_specs(spec)
-        all_specs = [spec] + fallback_specs
+
+        # If primary spec requires an API key but it's missing, skip it immediately
+        # rather than attempting the call and getting a 401.
+        if spec.api_key is not None and not spec.api_key:
+            logger.warning(
+                "[LLM] API key missing for %s/%s — skipping to fallback chain",
+                spec.provider, spec.model,
+            )
+            all_specs = fallback_specs
+        else:
+            all_specs = [spec] + fallback_specs
+
+        if not all_specs:
+            raise ValueError(f"No usable model found for use_case={use_case!r} — configure an API key")
 
         for attempt, current_spec in enumerate(all_specs):
             # Check per-model daily cap before attempting this model

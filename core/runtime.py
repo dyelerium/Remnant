@@ -126,18 +126,29 @@ class AgentRuntime:
         )
         system_prompt = agent_cfg.get("system_prompt", "You are a helpful AI assistant.")
 
-        # Inject current model identity
+        # Determine agent-specific model override (llm + model fields in agents.yaml)
+        _agent_llm = agent_cfg.get("llm")
+        _agent_model = agent_cfg.get("model")
+        _agent_override = f"{_agent_llm}/{_agent_model}" if _agent_llm and _agent_model else None
+
+        # Inject current model identity (prefer agent override, fall back to chat default)
         try:
-            _spec = self.llm.registry.resolve("chat")
+            _spec = (
+                self.llm.registry.get(_agent_override)
+                if _agent_override else None
+            ) or self.llm.registry.resolve("chat")
             system_prompt += f"\n[model:{_spec.provider}/{_spec.model}]"
         except Exception as exc:
-            logger.debug("[RUNTIME] Could not resolve chat model for identity tag: %s", exc)
+            logger.debug("[RUNTIME] Could not resolve model for identity tag: %s", exc)
 
         # Inject available tool schemas so the LLM knows what to call and how.
         # Skip for models that use native function calling — tools are passed via API.
         _use_native_tools = False
         try:
-            _native_spec = self.llm.registry.resolve("chat")
+            _native_spec = (
+                self.llm.registry.get(_agent_override)
+                if _agent_override else None
+            ) or self.llm.registry.resolve("chat")
             _use_native_tools = _native_spec.native_tools
         except Exception as exc:
             logger.debug("[RUNTIME] Could not resolve native_tools spec: %s", exc)
@@ -202,7 +213,10 @@ class AgentRuntime:
             # Pass tool schemas natively for models that support function calling
             _tools_param = None
             try:
-                _cur_spec = self.llm.registry.resolve(use_case, project_id)
+                _cur_spec = (
+                    self.llm.registry.get(_agent_override)
+                    if _agent_override else None
+                ) or self.llm.registry.resolve(use_case, project_id)
                 if _cur_spec.native_tools and self._tool_registry:
                     _tools_param = self._build_openai_tools()
             except Exception as exc:
@@ -214,6 +228,7 @@ class AgentRuntime:
                     project_id=project_id,
                     cancel_event=cancel_event,
                     tools=_tools_param,
+                    override=_agent_override,
                 ):
                     if cancel_event and cancel_event.is_set():
                         break
