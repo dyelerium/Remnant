@@ -697,6 +697,7 @@
                   <th style="text-align:right;padding:6px 4px;font-weight:500">$/1M in</th>
                   <th style="text-align:right;padding:6px 4px;font-weight:500">$/1M out</th>
                   <th style="text-align:center;padding:6px 4px;font-weight:500">Vision</th>
+                  <th style="text-align:center;padding:6px 4px;font-weight:500">Thinking</th>
                   <th style="text-align:center;padding:6px 4px;font-weight:500">Default?</th>
                   <th style="text-align:center;padding:6px 4px;font-weight:500"></th>
                 </tr>
@@ -714,6 +715,11 @@
                     <td style="padding:7px 4px;text-align:right;color:var(--text-dim)"
                         x-text="m.cost_per_1k_output ? '$' + (m.cost_per_1k_output * 1000).toFixed(3) : 'free'"></td>
                     <td style="padding:7px 4px;text-align:center" x-text="m.has_vision ? '✓' : '—'"></td>
+                    <td style="padding:7px 4px;text-align:center">
+                      <span x-show="m.has_thinking && m.thinking_enabled" style="color:#a78bfa;font-size:12px" title="Thinking enabled">🧠</span>
+                      <span x-show="m.has_thinking && !m.thinking_enabled" style="color:var(--text-muted);font-size:12px" title="Thinking available (off)">🧠</span>
+                      <span x-show="!m.has_thinking" style="color:var(--text-muted);font-size:12px">—</span>
+                    </td>
                     <td style="padding:7px 4px;text-align:center">
                       <button x-show="settingsData.default_model !== m.key"
                               class="btn-ghost" style="font-size:11px;padding:2px 8px"
@@ -764,6 +770,15 @@
                                      :checked="modelConfigForm[m.key]?.has_vision ?? m.has_vision ?? false"
                                      @change="setModelConfigField(m.key, 'has_vision', $event.target.checked)" />
                               <span style="font-size:12px">Supports image input</span>
+                            </label>
+                          </div>
+                          <div class="form-group" style="margin:0">
+                            <label class="form-label" style="font-size:11px">Thinking / Reasoning</label>
+                            <label style="display:flex;align-items:center;gap:6px;margin-top:6px">
+                              <input type="checkbox"
+                                     :checked="modelConfigForm[m.key]?.has_thinking ?? m.has_thinking ?? false"
+                                     @change="setModelConfigField(m.key, 'has_thinking', $event.target.checked)" />
+                              <span style="font-size:12px">Model supports extended thinking</span>
                             </label>
                           </div>
                           <div class="form-group" style="margin:0">

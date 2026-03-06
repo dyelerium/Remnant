@@ -328,6 +328,9 @@ class ModelConfigRequest(BaseModel):
     stream: bool = True
     use_cases: list[str] = []
     set_as_default_for_chat: bool = False
+    has_thinking: bool = False
+    thinking_enabled: bool = False
+    thinking_budget_tokens: int = 8000
 
 
 @router.post("/llm/providers/model-config")
@@ -355,6 +358,9 @@ async def save_model_config(body: ModelConfigRequest, request: Request) -> dict:
             "top_p": body.top_p,
             "stream": body.stream,
             "use_cases": body.use_cases or ["chat"],
+            "has_thinking": body.has_thinking,
+            "thinking_enabled": body.thinking_enabled,
+            "thinking_budget_tokens": body.thinking_budget_tokens,
         }
 
         if body.set_as_default_for_chat:
