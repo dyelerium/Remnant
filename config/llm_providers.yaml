@@ -1454,7 +1454,7 @@ providers:
         context_window: 131072
         cost_per_1k_input: 0.0
         cost_per_1k_output: 0.0
-        has_vision: false
+        has_vision: true
         history_fraction: 0.7
         max_completion_tokens: 16384
         stream: true
@@ -1570,11 +1570,14 @@ providers:
         context_window: 128000
         cost_per_1k_input: 0.0
         cost_per_1k_output: 0.0
-        has_vision: false
+        has_thinking: true
+        has_vision: true
         history_fraction: 0.7
         max_completion_tokens: 4096
         stream: true
         temperature: 0.3
+        thinking_budget_tokens: 8000
+        thinking_enabled: false
         top_p: 1.0
         use_cases:
         - chat
@@ -1584,11 +1587,14 @@ providers:
         context_window: 128000
         cost_per_1k_input: 0.0
         cost_per_1k_output: 0.0
+        has_thinking: true
         has_vision: false
         history_fraction: 0.7
         max_completion_tokens: 4096
         stream: true
         temperature: 0.4
+        thinking_budget_tokens: 8000
+        thinking_enabled: false
         top_p: 1.0
         use_cases:
         - chat

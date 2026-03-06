@@ -465,6 +465,8 @@ class LLMClient:
             "stream": False,
             "options": {"temperature": temperature, "top_p": spec.top_p, "num_predict": max_tokens or 4096},
         }
+        if spec.has_thinking:
+            payload["think"] = spec.thinking_enabled
         _RETRIES = 2
         for attempt in range(_RETRIES + 1):
             try:
@@ -498,6 +500,8 @@ class LLMClient:
             "stream": True,
             "options": {"temperature": temperature, "top_p": spec.top_p, "num_predict": max_tokens or 4096},
         }
+        if spec.has_thinking:
+            payload["think"] = spec.thinking_enabled
         _RETRIES = 2
         for attempt in range(_RETRIES + 1):
             try:
