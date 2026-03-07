@@ -74,8 +74,26 @@ class TelegramBot:
 
         @self._dp.message()
         async def handle_message(message: types.Message):
-            text = message.text or ""
+            # Use caption as text for photo messages; fall back to empty string
+            text = message.text or message.caption or ""
             chat_id = str(message.chat.id)
+
+            # ---- Download attached photo (if any) and encode as base64 ----
+            images = None
+            if message.photo:
+                try:
+                    import base64 as _b64
+                    # Largest available resolution is last in the list
+                    photo = message.photo[-1]
+                    file_info = await self._bot.get_file(photo.file_id)
+                    downloaded = await self._bot.download_file(file_info.file_path)
+                    b64_data = _b64.b64encode(downloaded.read()).decode()
+                    images = [{"mime": "image/jpeg", "data": b64_data}]
+                    if not text:
+                        text = "Please describe and analyze this image."
+                    logger.info("[TELEGRAM] Photo received (%d bytes) from chat %s", photo.file_size, chat_id)
+                except Exception as _exc:
+                    logger.warning("[TELEGRAM] Failed to download photo: %s", _exc)
 
             # --- /clear command: wipe Redis session history ---
             if text.strip().lower() == "/clear":
@@ -193,6 +211,7 @@ class TelegramBot:
                 channel="telegram",
                 memory_context=memory_context,
                 project_id=active_project_id or None,
+                images=images,
             ):
                 response_parts.append(chunk)
 
@@ -221,6 +240,7 @@ class TelegramBot:
                 "user_message": text,
                 "response": response_text,
                 "project_id": active_project_id or None,
+                "has_image": bool(images),
             }
 
             # Persist to Redis inbox so reconnecting clients can fetch it
